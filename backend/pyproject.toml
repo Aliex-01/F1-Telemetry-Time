@@ -1,0 +1,22 @@
+[project]
+name = "f1-telemetry-backend"
+version = "0.1.0"
+description = "Backend FastAPI que sirve telemetria de F1 usando FastF1"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "fastf1>=3.4",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "pydantic>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+]
+
+[tool.ruff]
+line-length = 100

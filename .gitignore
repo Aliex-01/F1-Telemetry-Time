@@ -1,0 +1,17 @@
+# Python / uv
+backend/.venv/
+backend/.fastf1-cache/
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db

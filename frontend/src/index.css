@@ -1,0 +1,61 @@
+:root {
+  /* Paleta motorsport */
+  --bg: #0a0a0e;
+  --bg-2: #0f0f15;
+  --surface: #14141b;
+  --surface-2: #1a1a23;
+  --surface-3: #20202b;
+  --border: #262631;
+  --border-soft: #1e1e28;
+  --text: #eef0f4;
+  --text-muted: #9096a4;
+  --text-dim: #6b7080;
+  --accent: #e10600;      /* rojo F1 */
+  --accent-2: #ff2b20;
+  --accent-glow: rgba(225, 6, 0, 0.35);
+  --good: #00c853;
+  --info: #2f7bff;
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  font-family: "Titillium Web", system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  color-scheme: dark;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(225, 6, 0, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 0% 0%, rgba(47, 123, 255, 0.05), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 8px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2c2c39;
+}

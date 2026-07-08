@@ -121,7 +121,7 @@ export const WeatherPanel = memo(function WeatherPanel({ year, round, session }:
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
             <XAxis dataKey="min" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} unit=" min" tick={{ fontSize: 11, fill: "#8a8f9c" }} tickLine={false} axisLine={{ stroke: "rgba(255,255,255,0.08)" }} minTickGap={40} />
             <YAxis tick={{ fontSize: 11, fill: "#8a8f9c" }} tickLine={false} axisLine={false} width={38} unit="°" />
-            <Tooltip labelFormatter={(v) => `min ${v}`} formatter={(val: number, name) => [`${val?.toFixed?.(1)} °C`, name === "air" ? "Aire" : "Pista"]} cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }} />
+            <Tooltip labelFormatter={(v) => `min ${v}`} formatter={(val, name) => [`${Number(val).toFixed(1)} °C`, name === "air" ? "Aire" : "Pista"]} cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }} />
             <Area type="monotone" dataKey="track" stroke="#e10600" strokeWidth={2} fill="url(#grad-track)" fillOpacity={1} dot={false} activeDot={{ r: 3.5, stroke: "#fff", strokeWidth: 1.5 }} isAnimationActive={false} />
             <Area type="monotone" dataKey="air" stroke="#ff9100" strokeWidth={2} fill="url(#grad-air)" fillOpacity={1} dot={false} activeDot={{ r: 3.5, stroke: "#fff", strokeWidth: 1.5 }} isAnimationActive={false} />
           </AreaChart>

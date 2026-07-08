@@ -64,8 +64,9 @@ export const TelemetryChart = memo(function TelemetryChart({ telemetry, onHover 
             <AreaChart
               data={data}
               margin={{ top: 4, right: 16, bottom: 4, left: 0 }}
-              onMouseMove={(s: { activeTooltipIndex?: number | null }) => {
-                if (onHover && s && s.activeTooltipIndex != null) onHover(s.activeTooltipIndex);
+              onMouseMove={(s) => {
+                const idx = s?.activeTooltipIndex;
+                if (onHover && idx != null) onHover(Number(idx));
               }}
               onMouseLeave={() => onHover?.(null)}
             >
@@ -97,7 +98,7 @@ export const TelemetryChart = memo(function TelemetryChart({ telemetry, onHover 
               />
               <Tooltip
                 labelFormatter={(v) => `${v} m`}
-                formatter={(val: number) => [`${val} ${ch.unit}`, ch.label]}
+                formatter={(val) => [`${val} ${ch.unit}`, ch.label]}
                 cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }}
               />
               <Area

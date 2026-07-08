@@ -107,12 +107,13 @@ export function ReplayPlayer() {
   const frameCars = useMemo(() => {
     if (!data) return {};
     const i0 = Math.floor(pos), i1 = Math.min(i0 + 1, data.n - 1), f = pos - i0;
-    const out: Record<string, { x: number; y: number; speed: number; throttle: number; brake: number; gear: number }> = {};
+    const out: Record<string, { x: number; y: number; speed: number; throttle: number; brake: number; gear: number; rpm: number; drs: number }> = {};
     for (const [num, c] of Object.entries(data.cars)) {
       out[num] = {
         x: c.x[i0] + (c.x[i1] - c.x[i0]) * f,
         y: c.y[i0] + (c.y[i1] - c.y[i0]) * f,
         speed: c.speed[i0], throttle: c.throttle[i0], brake: c.brake[i0], gear: c.gear[i0],
+        rpm: 0, drs: 0, // la repeticion no trae estos canales; el mapa solo usa x/y
       };
     }
     return out;

@@ -35,8 +35,8 @@ export const CompareChart = memo(function CompareChart({ data, colors, onHover }
   const { grid, laps, delta } = data;
 
   const hoverProps = {
-    onMouseMove: (s: { activeTooltipIndex?: number | null }) => {
-      if (onHover && s && s.activeTooltipIndex != null) onHover(s.activeTooltipIndex);
+    onMouseMove: (s: { activeTooltipIndex?: number | string | null }) => {
+      if (onHover && s && s.activeTooltipIndex != null) onHover(Number(s.activeTooltipIndex));
     },
     onMouseLeave: () => onHover?.(null),
   };
@@ -120,7 +120,7 @@ export const CompareChart = memo(function CompareChart({ data, colors, onHover }
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
             <XAxis dataKey="distance" unit=" m" tick={{ fontSize: 11, fill: "#8a8f9c" }} tickLine={false} axisLine={{ stroke: "rgba(255,255,255,0.08)" }} minTickGap={40} />
             <YAxis tick={{ fontSize: 11, fill: "#8a8f9c" }} tickLine={false} axisLine={false} width={40} />
-            <Tooltip labelFormatter={(v) => `${v} m`} formatter={(val: number) => `${val.toFixed(3)} s`} cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }} />
+            <Tooltip labelFormatter={(v) => `${v} m`} formatter={(val) => `${Number(val).toFixed(3)} s`} cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }} />
             <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" strokeDasharray="4 4" />
             {delta.map((series, j) => (
               <Area

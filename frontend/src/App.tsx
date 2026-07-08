@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api/client";
+import { BackendConfig } from "./components/BackendConfig";
 import { CompareChart } from "./components/CompareChart";
 import { LapsTable } from "./components/LapsTable";
 import { Select } from "./components/Select";
@@ -199,6 +200,7 @@ export default function App() {
             <p className="sub">Análisis de vueltas · clasificación, carrera y tiempo real</p>
           </div>
         </div>
+        <BackendConfig />
       </header>
 
       <nav className="tabs">

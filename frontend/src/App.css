@@ -14,6 +14,104 @@
   z-index: 20;
   background: linear-gradient(to bottom, var(--bg) 60%, rgba(10, 10, 14, 0.85));
   backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* Ajuste de URL del backend */
+.backend-config {
+  position: relative;
+}
+.backend-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.backend-btn.warn {
+  color: #ffcf70;
+  border-color: rgba(255, 145, 0, 0.4);
+  background: rgba(255, 145, 0, 0.1);
+}
+.backend-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 320px;
+  max-width: 80vw;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.backend-pop label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.backend-pop input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+.backend-help {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 8px 0 10px;
+}
+.backend-help code {
+  background: var(--surface-3);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.backend-actions {
+  display: flex;
+  gap: 8px;
+}
+.backend-save {
+  flex: 1;
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.backend-cancel {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
 }
 .brand {
   display: flex;

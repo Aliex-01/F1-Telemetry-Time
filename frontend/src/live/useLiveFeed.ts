@@ -2,7 +2,7 @@
 // metadatos (pilotos), ultimo frame de todos los coches, e historial del piloto
 // seleccionado para el grafico deslizante.
 import { useEffect, useRef, useState } from "react";
-import { WS_URL } from "../api/client";
+import { getWsUrl } from "../api/client";
 
 export interface CarSample {
   speed: number;
@@ -54,7 +54,7 @@ export function useLiveFeed(selectedDriverNum: string | null) {
   selectedRef.current = selectedDriverNum;
 
   useEffect(() => {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(getWsUrl());
     ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);
     ws.onmessage = (ev) => {

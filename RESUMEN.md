@@ -143,13 +143,14 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 |---|---|
 | `main.tsx` | Punto de entrada: monta `<App>` en el `#root`. |
 | `App.tsx` | El corazón de la UI. Define las **3 pestañas** (Análisis · Comparación · Tiempo real), los **selectores en cascada** (Año → GP → Sesión → Piloto → Vuelta), y todo el estado: carga encadenada desde la API, telemetría de la vuelta, cesta de comparación, hover sincronizado con el mapa y **prefetch** al elegir piloto. En Análisis, el layout es una **fila superior** (tabla de vueltas + mapa de pista, con la tabla ajustada al alto del mapa) y, debajo, las **gráficas de telemetría a lo ancho de toda la página**. |
-| `api/client.ts` | El **cliente tipado** de la API (un método por endpoint) y `WS_URL` para el WebSocket. Apunta a `127.0.0.1:8080`. |
+| `api/client.ts` | El **cliente tipado** de la API (un método por endpoint) y el WebSocket. La **URL base se resuelve en tiempo de ejecución** (`getApiBase`): localStorage → `VITE_API_BASE` → `127.0.0.1:8080`. Así el frontend estático (Cloudflare Pages) puede apuntar a un backend remoto por túnel. `getWsUrl`, `setApiBase`, `getStoredApiBase`. |
 | `types/api.ts` | Los `interface` de TypeScript, **espejo exacto** del contrato del backend (`Telemetry`, `LapInfo`, `CompareResponse`, `ReplayData`, `CircuitInfo`, etc.). |
 
 ### 4.2 `components/` — piezas reutilizables
 
 | Archivo | Qué es |
 |---|---|
+| `BackendConfig.tsx` | Botón **⚙ Backend** en la cabecera: abre un panel para pegar la **URL del backend** (el túnel), la guarda en el navegador (`setApiBase`) y recarga. Para el despliegue: frontend en Pages + backend en el PC con URL cambiante. |
 | `Select.tsx` | Desplegable **personalizado** (no el `<select>` nativo) para poder tematizar también la lista que se abre: fondo oscuro, hover, selección resaltada, scroll, cierre con clic fuera / Escape. Lo usan Análisis y el reproductor. |
 | `LapsTable.tsx` | La tabla de vueltas de un piloto: tiempo, sectores, fase (Q1/Q2/Q3), neumático (solo el **círculo de color** con la inicial; el compuesto completo va en el `title`) y vida. Clic en una fila selecciona la vuelta. Compacta para no tener scroll horizontal. |
 | `TelemetryChart.tsx` | Las gráficas de una vuelta (velocidad, acelerador, freno, marcha, RPM, DRS), alineadas por distancia, con **relleno degradado**, rejilla, **glow** del color del canal en la línea, remates redondeados, grosor jerárquico (velocidad más gruesa) y punto activo con halo. Reporta el punto bajo el ratón para sincronizar la bolita del mapa. Oculta el DRS si está plano a 0 (temporada 2026). Memoizada. |
@@ -193,6 +194,8 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 | Archivo | Qué es |
 |---|---|
 | `DESIGN.md` | El documento de diseño: arquitectura, contrato de la API, plan por fases y notas técnicas. |
+| `DEPLOY.md` | Guía de despliegue: frontend en **Cloudflare Pages** + backend en tu PC expuesto por **túnel** de Cloudflare. Pasos, CORS y flujo de la URL configurable. |
+| `start-online.bat` | Arranca el backend (`uvicorn :8080`) y el **túnel** `cloudflared` de un tirón, para poner el backend online desde tu PC. |
 | `backend/pyproject.toml` | Dependencias del backend (FastAPI, uvicorn, fastf1, pandas, numpy, pydantic) y config de ruff. Entorno con **uv** (`uv sync`, `uv run`). |
 | `backend/README.md` | Cómo levantar el backend (`uv run uvicorn app.main:app --reload --port 8080`) y notas sobre la caché. |
 | `frontend/package.json` | Dependencias del frontend (React, Vite, TypeScript, **Recharts** para las gráficas) y scripts (`npm run dev`, `build`). |

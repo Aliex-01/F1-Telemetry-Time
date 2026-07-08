@@ -13,13 +13,45 @@ import type {
   WeatherSample,
 } from "../types/api";
 
-const BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8080/api";
+// La URL del backend se resuelve en tiempo de ejecucion para poder desplegar el
+// frontend estatico (Cloudflare Pages) y apuntarlo a un backend con URL cambiante
+// (tunel). Prioridad: lo guardado en el navegador -> VITE_API_BASE (build) -> localhost.
+const LS_KEY = "f1_api_base";
+const ENV_BASE = import.meta.env.VITE_API_BASE as string | undefined;
+const DEFAULT_BASE = "http://127.0.0.1:8080/api";
 
-// URL del WebSocket de tiempo real (deriva del BASE http -> ws).
-export const WS_URL = BASE.replace(/^http/, "ws") + "/live/ws";
+// Normaliza: quita barras finales y garantiza el sufijo /api.
+function normalize(raw: string): string {
+  let u = raw.trim().replace(/\/+$/, "");
+  if (!/\/api$/.test(u)) u += "/api";
+  return u;
+}
+
+/** URL base efectiva de la API (ya normalizada con /api). */
+export function getApiBase(): string {
+  const stored = typeof localStorage !== "undefined" ? localStorage.getItem(LS_KEY) : null;
+  return normalize(stored || ENV_BASE || DEFAULT_BASE);
+}
+
+/** Lo que el usuario guardo manualmente (vacio si no ha configurado nada). */
+export function getStoredApiBase(): string {
+  return (typeof localStorage !== "undefined" && localStorage.getItem(LS_KEY)) || "";
+}
+
+/** Guarda (o borra, si se pasa vacio) la URL del backend en el navegador. */
+export function setApiBase(url: string): void {
+  const v = url.trim();
+  if (v) localStorage.setItem(LS_KEY, v);
+  else localStorage.removeItem(LS_KEY);
+}
+
+/** URL del WebSocket de tiempo real (deriva del base http -> ws). */
+export function getWsUrl(): string {
+  return getApiBase().replace(/^http/, "ws") + "/live/ws";
+}
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -29,7 +61,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${getApiBase()}${path}`);
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`${res.status}: ${detail}`);
@@ -66,7 +98,7 @@ export const api = {
   prefetch: (year: number, round: number, session: string) =>
     post<{ warmed: boolean }>(`/${year}/${round}/${session}/prefetch`, {}),
   compare: async (laps: LapRef[]): Promise<CompareResponse> => {
-    const res = await fetch(`${BASE}/compare`, {
+    const res = await fetch(`${getApiBase()}/compare`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ laps }),

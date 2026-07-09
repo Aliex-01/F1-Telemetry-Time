@@ -142,7 +142,7 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 | Archivo | Qué hace |
 |---|---|
 | `main.tsx` | Punto de entrada: monta `<App>` en el `#root`. |
-| `App.tsx` | El corazón de la UI. Define las **3 pestañas** (Análisis · Comparación · Tiempo real), los **selectores en cascada** (Año → GP → Sesión → Piloto → Vuelta), y todo el estado: carga encadenada desde la API, telemetría de la vuelta, cesta de comparación, hover sincronizado con el mapa y **prefetch** al elegir piloto. En Análisis, el layout es una **fila superior** (tabla de vueltas + mapa de pista, con la tabla ajustada al alto del mapa) y, debajo, las **gráficas de telemetría a lo ancho de toda la página**. |
+| `App.tsx` | El corazón de la UI. Define las **3 pestañas** (Análisis · Comparación · Tiempo real), los **selectores en cascada** (Año → GP → Sesión → Piloto → Vuelta), y todo el estado: carga encadenada desde la API, telemetría de la vuelta, cesta de comparación, hover sincronizado con el mapa y **prefetch** al elegir piloto. En Análisis, el layout es una **fila superior** (tabla de vueltas + mapa de pista, con la tabla ajustada al alto del mapa) y, debajo, las **gráficas de telemetría a lo ancho de toda la página**. Las pestañas llevan un **subrayado rojo deslizante** (un único indicador que mide el botón activo y anima `left/width`) y la página cierra con un **footer** (descripción, tecnología, enlaces a GitHub/FastF1 y aviso de proyecto no oficial). |
 | `api/client.ts` | El **cliente tipado** de la API (un método por endpoint) y el WebSocket. La **URL base se resuelve en tiempo de ejecución** (`getApiBase`): localStorage → `VITE_API_BASE` → `127.0.0.1:8080`. Así el frontend estático (Cloudflare Pages) puede apuntar a un backend remoto por túnel. `getWsUrl`, `setApiBase`, `getStoredApiBase`. |
 | `types/api.ts` | Los `interface` de TypeScript, **espejo exacto** del contrato del backend (`Telemetry`, `LapInfo`, `CompareResponse`, `ReplayData`, `CircuitInfo`, etc.). |
 
@@ -175,7 +175,7 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 | Archivo | Qué es |
 |---|---|
 | `index.css` | El tema visual base: variables de color (paleta *motorsport* con rojo F1), fondo con degradados sutiles, scrollbars, fuente **Titillium Web**. |
-| `App.css` | El grueso de los estilos: cabecera, pestañas, selectores y el desplegable custom, tarjetas de sección, tabla de vueltas, mapas, gráficas, torre de tiempos, meteo, reproductor, etc. Incluye las **animaciones de UI** (entrada escalonada de secciones al cambiar de pestaña, destello de la vuelta seleccionada, línea de corte de la quali) y un bloque **`prefers-reduced-motion`** que las anula si el usuario pide menos movimiento. |
+| `App.css` | El grueso de los estilos: cabecera, pestañas, selectores y el desplegable custom, tarjetas de sección, tabla de vueltas, mapas, gráficas, torre de tiempos, meteo, reproductor, etc. Incluye las **animaciones de UI** (entrada escalonada de secciones al cambiar de pestaña, subrayado deslizante de las pestañas, destello de la vuelta seleccionada, línea de corte de la quali), los estilos del **footer** y un bloque **`prefers-reduced-motion`** que anula las animaciones si el usuario pide menos movimiento. |
 
 ---
 

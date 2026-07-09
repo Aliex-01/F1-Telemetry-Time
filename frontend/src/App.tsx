@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api/client";
 import { BackendConfig } from "./components/BackendConfig";
 import { CompareChart } from "./components/CompareChart";
@@ -96,6 +96,22 @@ export default function App() {
   // Setters de hover limitados a un update por frame (movimiento fluido).
   const onHoverLap = useRafSetter(setHoverIdx);
   const onHoverCompare = useRafSetter(setCompareHoverIdx);
+
+  // Subrayado deslizante de las pestanas: un unico indicador que mide el boton
+  // activo y se anima (left/width) al cambiar de pestana, en vez de aparecer/
+  // desaparecer. Se recalcula al cambiar de vista, al variar el badge de la
+  // cesta (cambia el ancho) y al redimensionar la ventana.
+  const tabsRef = useRef<HTMLElement>(null);
+  const [underline, setUnderline] = useState({ left: 0, width: 0 });
+  const measureUnderline = useCallback(() => {
+    const active = tabsRef.current?.querySelector<HTMLElement>("button.active");
+    if (active) setUnderline({ left: active.offsetLeft, width: active.offsetWidth });
+  }, []);
+  useLayoutEffect(measureUnderline, [measureUnderline, view, compareRefs.length]);
+  useEffect(() => {
+    window.addEventListener("resize", measureUnderline);
+    return () => window.removeEventListener("resize", measureUnderline);
+  }, [measureUnderline]);
 
   // Carga inicial de temporadas.
   useEffect(() => {
@@ -197,14 +213,14 @@ export default function App() {
         <div className="brand">
           <span className="brand-bar" />
           <div>
-            <h1>F1 <span>TELEMETRY</span></h1>
+            <h1>F1 <span>TELEMETRY</span> TIME</h1>
             <p className="sub">Análisis de vueltas · clasificación, carrera y tiempo real</p>
           </div>
         </div>
         <BackendConfig />
       </header>
 
-      <nav className="tabs">
+      <nav className="tabs" ref={tabsRef}>
         <button className={view === "analysis" ? "active" : ""} onClick={() => setView("analysis")}>
           Análisis
         </button>
@@ -215,6 +231,7 @@ export default function App() {
         <button className={view === "live" ? "active" : ""} onClick={() => setView("live")}>
           Tiempo real
         </button>
+        <span className="tab-underline" style={{ left: underline.left, width: underline.width }} />
       </nav>
 
       {(view === "analysis" || view === "compare") && (
@@ -351,6 +368,49 @@ export default function App() {
       <div style={{ display: view === "live" ? undefined : "none" }}>
         <LivePanel active={view === "live"} />
       </div>
+
+      <footer className="app-footer">
+        <div className="footer-main">
+          <div className="footer-col footer-about">
+            <div className="footer-brand">F1 <span>TELEMETRY</span> TIME</div>
+            <p>
+              Visor de telemetría y tiempo real de Fórmula 1. Los datos se descargan de la
+              fuente oficial de F1 con <strong>FastF1</strong>, se cachean y se adelgazan en el
+              servidor antes de mostrarse.
+            </p>
+          </div>
+          <div className="footer-col">
+            <h4>Tecnología</h4>
+            <ul>
+              <li>Backend · FastAPI + FastF1</li>
+              <li>Frontend · React + Vite</li>
+              <li>Gráficas · Recharts</li>
+            </ul>
+          </div>
+          <div className="footer-col">
+            <h4>Enlaces</h4>
+            <ul>
+              <li>
+                <a href="https://github.com/Aliex-01/F1-Telemetry-Time" target="_blank" rel="noreferrer">
+                  GitHub
+                </a>
+              </li>
+              <li>
+                <a href="https://docs.fastf1.dev/" target="_blank" rel="noreferrer">
+                  FastF1
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>F1 Telemetry Time · {new Date().getFullYear()}</span>
+          <span className="footer-disclaimer">
+            Proyecto no oficial. No afiliado ni respaldado por Formula 1. Las marcas y los datos
+            pertenecen a sus respectivos titulares.
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

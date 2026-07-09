@@ -1,7 +1,12 @@
 .app {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 22px 80px;
+  padding: 0 22px;
+  /* Columna a lo alto de la pantalla: si el contenido no la llena, el footer
+     (margin-top:auto) baja hasta el fondo; si hay scroll, aparece al final. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---------------------------------------------------------------- header */
@@ -142,10 +147,21 @@
 
 /* ---------------------------------------------------------------- tabs */
 .tabs {
+  position: relative;
   display: flex;
   gap: 4px;
   margin-bottom: 22px;
   border-bottom: 1px solid var(--border);
+}
+/* Subrayado unico que se desliza al boton activo (ver App.tsx: mide left/width). */
+.tab-underline {
+  position: absolute;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 .tabs button {
   position: relative;
@@ -171,7 +187,6 @@
 }
 .tabs button.active {
   color: var(--text);
-  border-bottom-color: var(--accent);
 }
 .tab-badge {
   display: inline-flex;
@@ -1282,6 +1297,82 @@
   font-weight: 700;
   margin: 4px 0 10px;
   letter-spacing: 0.3px;
+}
+
+/* ---------------------------------------------------------------- footer */
+.app-footer {
+  /* auto = absorbe el espacio libre y empuja el footer al fondo cuando el
+     contenido no llena la pantalla; en paginas con scroll queda a 0. */
+  margin-top: auto;
+  padding-top: 28px;
+  padding-bottom: 40px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.footer-main {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 32px;
+  margin-bottom: 24px;
+}
+@media (max-width: 720px) {
+  .footer-main {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+.footer-brand {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.footer-brand span {
+  color: var(--accent);
+}
+.footer-about p {
+  margin: 0;
+  max-width: 46ch;
+  line-height: 1.55;
+}
+.footer-col h4 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.footer-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.footer-col a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.footer-col a:hover {
+  color: var(--accent);
+}
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.footer-disclaimer {
+  max-width: 60ch;
 }
 
 /* ------------------------------------------------- accesibilidad: menos motion */

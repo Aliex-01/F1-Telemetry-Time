@@ -217,7 +217,8 @@ export default function App() {
             <p className="sub">Análisis de vueltas · clasificación, carrera y tiempo real</p>
           </div>
         </div>
-        <BackendConfig />
+        {/* Solo en dev: en produccion la URL del backend va fijada (client.ts). */}
+        {import.meta.env.DEV && <BackendConfig />}
       </header>
 
       <nav className="tabs" ref={tabsRef}>

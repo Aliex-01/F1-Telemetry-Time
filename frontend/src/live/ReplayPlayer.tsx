@@ -584,7 +584,7 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
                     isAnimationActive={false}
                     contentStyle={{ background: "#1e1e28", border: "1px solid #3a3a48", borderRadius: 8, fontSize: 12 }}
                     labelFormatter={() => ""}
-                    formatter={(v: number) => [`${v} km/h`, ""]}
+                    formatter={(v) => [`${Math.round(Number(v))} km/h`, ""]}
                   />
                   <Area
                     type="monotone"

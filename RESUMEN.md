@@ -198,7 +198,8 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 | `README.md` (raíz) | Portada del repo en GitHub: qué es, características, stack, puesta en marcha, despliegue y punteros a RESUMEN/DESIGN/DEPLOY. |
 | `DESIGN.md` | El documento de diseño: arquitectura, contrato de la API, plan por fases y notas técnicas. |
 | `DEPLOY.md` | Guía de despliegue: frontend en **Cloudflare Pages** + backend en tu PC expuesto por **túnel** de Cloudflare. Pasos, CORS y flujo de la URL configurable. |
-| `start-online.bat` | Arranca el backend (`uvicorn :8080`) y el **túnel** `cloudflared` de un tirón, para poner el backend online desde tu PC. |
+| `start-online.bat` | Arranca el backend (`uvicorn :8080`) y lo expone con **Tailscale Funnel** (URL fija `https://<equipo>.<tailnet>.ts.net`) de un tirón, para poner el backend online desde tu PC. |
+| `start-online-cloudflare.bat` | Alternativa antigua: backend + **quick tunnel de Cloudflare** (`cloudflared`, URL que cambia en cada arranque). Se conserva por si se quiere volver a ese método. |
 | `backend/pyproject.toml` | Dependencias del backend (FastAPI, uvicorn, fastf1, pandas, numpy, pydantic) y config de ruff. Entorno con **uv** (`uv sync`, `uv run`). |
 | `backend/README.md` | Cómo levantar el backend (`uv run uvicorn app.main:app --reload --port 8080`) y notas sobre la caché. |
 | `frontend/package.json` | Dependencias del frontend (React, Vite, TypeScript, **Recharts** para las gráficas) y scripts (`npm run dev`, `build`). |

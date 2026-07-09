@@ -14,11 +14,16 @@ import type {
 } from "../types/api";
 
 // La URL del backend se resuelve en tiempo de ejecucion para poder desplegar el
-// frontend estatico (Cloudflare Pages) y apuntarlo a un backend con URL cambiante
-// (tunel). Prioridad: lo guardado en el navegador -> VITE_API_BASE (build) -> localhost.
+// frontend estatico (Cloudflare Pages) y apuntarlo al backend que corre en el PC.
+// Prioridad: lo guardado en el navegador (boton ⚙ Backend) -> VITE_API_BASE (build)
+// -> valor por defecto segun entorno.
 const LS_KEY = "f1_api_base";
 const ENV_BASE = import.meta.env.VITE_API_BASE as string | undefined;
-const DEFAULT_BASE = "http://127.0.0.1:8080/api";
+// En produccion apunta al backend fijo expuesto por Tailscale Funnel (URL estable);
+// en dev, al backend local en :8080. Se puede sobreescribir con lo de arriba.
+const PROD_BASE = "https://alejandro.tail2c9840.ts.net/api";
+const DEV_BASE = "http://127.0.0.1:8080/api";
+const DEFAULT_BASE = import.meta.env.DEV ? DEV_BASE : PROD_BASE;
 
 // Normaliza: quita barras finales y garantiza el sufijo /api.
 function normalize(raw: string): string {

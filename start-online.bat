@@ -1,11 +1,16 @@
 @echo off
-REM Arranca el backend (puerto 8080) y lo expone a internet con un tunel de
-REM Cloudflare (gratis, sin cuenta). Copia la URL https://....trycloudflare.com
-REM que aparezca y pegala en la web (boton "Backend") en f1-telemetry-time.pages.dev
+REM Arranca el backend (:8080) y lo expone a internet con TAILSCALE FUNNEL, que da
+REM una URL FIJA https://<equipo>.<tailnet>.ts.net (no cambia entre reinicios, a
+REM diferencia del quick tunnel de Cloudflare). Al ser fija, la web ya apunta sola
+REM y no hace falta volver a pegarla en el boton "Backend".
 REM
 REM Requisitos (una sola vez):
 REM   - uv instalado (backend)
-REM   - cloudflared instalado:  winget install --id Cloudflare.cloudflared
+REM   - Tailscale instalado y con sesion iniciada:  tailscale up
+REM   - En la consola de Tailscale: MagicDNS + HTTPS Certificates activados y
+REM     Funnel habilitado para este equipo.
+
+set "TS=%ProgramFiles%\Tailscale\tailscale.exe"
 
 echo === Arrancando backend (uvicorn :8080) en otra ventana ===
 start "F1 backend" cmd /k "cd /d %~dp0backend && uv run uvicorn app.main:app --port 8080"
@@ -14,5 +19,7 @@ echo Esperando a que arranque el backend...
 timeout /t 4 /nobreak >nul
 
 echo.
-echo === Abriendo tunel Cloudflare (copia la URL https que aparezca) ===
-cloudflared tunnel --url http://localhost:8080
+echo === Exponiendo el backend con Tailscale Funnel (URL fija) ===
+echo (Deja esta ventana abierta mientras quieras estar online; cierrala para parar.)
+echo.
+"%TS%" funnel 8080

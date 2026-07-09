@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { api } from "../api/client";
 import type { WeatherSample } from "../types/api";
+import { ProgressBar } from "./ProgressBar";
 
 interface Props {
   year: number;
@@ -51,7 +52,7 @@ export const WeatherPanel = memo(function WeatherPanel({ year, round, session }:
   }, [year, round, session]);
 
   if (error) return null;
-  if (!data) return <div className="weather"><p className="status">Cargando meteorología…</p></div>;
+  if (!data) return <div className="weather"><ProgressBar label="Cargando meteorología…" /></div>;
   if (data.length === 0) return null;
 
   const airAvg = avg(data.map((d) => d.airTemp ?? NaN));

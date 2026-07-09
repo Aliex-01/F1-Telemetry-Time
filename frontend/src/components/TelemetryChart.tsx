@@ -98,7 +98,7 @@ export const TelemetryChart = memo(function TelemetryChart({ telemetry, onHover 
               />
               <Tooltip
                 labelFormatter={(v) => `${v} m`}
-                formatter={(val) => [`${val} ${ch.unit}`, ch.label]}
+                formatter={(val) => [`${Math.round(Number(val))} ${ch.unit}`, ch.label]}
                 cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }}
               />
               <Area
@@ -115,7 +115,12 @@ export const TelemetryChart = memo(function TelemetryChart({ telemetry, onHover 
                 style={{ filter: `url(#glow-${ch.key})` }}
                 // Punto activo con halo del color del canal + nucleo con borde blanco.
                 activeDot={{ r: 4, fill: ch.color, stroke: "#fff", strokeWidth: 1.5, filter: `url(#glow-${ch.key})` }}
-                isAnimationActive={false}
+                // Trazado progresivo izq->der al abrir una vuelta. No se re-dispara
+                // en el hover: el componente esta memoizado y onHover es estable,
+                // asi que solo re-renderiza cuando cambia la telemetria (nueva vuelta).
+                isAnimationActive={true}
+                animationDuration={1000}
+                animationEasing="ease-out"
               />
             </AreaChart>
           </ResponsiveContainer>

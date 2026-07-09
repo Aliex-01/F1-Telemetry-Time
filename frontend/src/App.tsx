@@ -3,6 +3,7 @@ import { api } from "./api/client";
 import { BackendConfig } from "./components/BackendConfig";
 import { CompareChart } from "./components/CompareChart";
 import { LapsTable } from "./components/LapsTable";
+import { ProgressBar } from "./components/ProgressBar";
 import { Select } from "./components/Select";
 import { TelemetryChart } from "./components/TelemetryChart";
 import { TrackMap } from "./components/TrackMap";
@@ -238,7 +239,7 @@ export default function App() {
       )}
 
       {(view === "analysis" || view === "compare") && loading && (
-        <p className="status">Cargando… (la primera sesión descarga datos)</p>
+        <ProgressBar label="Cargando… (la primera sesión descarga datos)" />
       )}
       {(view === "analysis" || view === "compare") && error && (
         <p className="status error">{error}</p>
@@ -345,7 +346,11 @@ export default function App() {
         </section>
       )}
 
-      {view === "live" && <LivePanel />}
+      {/* Siempre montado (oculto con CSS) para conservar el estado de la repeticion
+          -sesion cargada y momento- al cambiar a Analisis/Comparacion y volver. */}
+      <div style={{ display: view === "live" ? undefined : "none" }}>
+        <LivePanel active={view === "live"} />
+      </div>
     </div>
   );
 }

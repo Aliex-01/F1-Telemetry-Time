@@ -11,6 +11,7 @@ import {
 import { api } from "../api/client";
 import { LiveTrackMap } from "./LiveTrackMap";
 import { useLiveFeed } from "./useLiveFeed";
+import { NO_POS, orderByTeam } from "./gridOrder";
 
 export function LiveDirect() {
   const [selected, setSelected] = useState<string | null>(null);
@@ -27,9 +28,13 @@ export function LiveDirect() {
     try { await api.liveStop(); } catch (e) { setError(String(e)); } finally { setBusy(false); }
   }
 
-  const cars = frame ? Object.entries(frame.cars) : [];
   const byNum = new Map(meta?.drivers.map((d) => [String(d.number), d]));
-  cars.sort((a, b) => b[1].speed - a[1].speed);
+  const cars = orderByTeam(
+    frame ? Object.entries(frame.cars) : [],
+    (num) => frame?.cars[num]?.pos ?? NO_POS,
+    (num) => byNum.get(num)?.team ?? null,
+    (num) => byNum.get(num)?.number ?? Number(num),
+  );
 
   return (
     <div>
@@ -63,10 +68,14 @@ export function LiveDirect() {
         </div>
       )}
 
-      <div className="live-grid">
+      <div
+        className="live-grid"
+        style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.ceil(cars.length / 2))}, minmax(0, 1fr))` }}
+      >
         {cars.map(([num, c]) => {
           const d = byNum.get(num);
           const isSel = selected === num;
+          const drsOn = c.drs >= 10; // 10/12/14 = DRS abierto
           return (
             <button
               key={num}
@@ -74,11 +83,22 @@ export function LiveDirect() {
               style={{ borderLeftColor: d?.teamColor ?? "#888" }}
               onClick={() => setSelected(isSel ? null : num)}
             >
-              <div className="car-code">{d?.code ?? num}</div>
+              <div className="car-head">
+                <span className="car-pos">{c.pos ? `P${c.pos}` : "—"}</span>
+                <span className="car-code">{d?.code ?? num}</span>
+                <span className={`car-drs ${drsOn ? "on" : ""}`}>DRS</span>
+              </div>
               <div className="car-speed">{Math.round(c.speed)}<small> km/h</small></div>
-              <div className="car-row">
+              <div className="car-meta">
                 <span className="gear">M{c.gear}</span>
+                <span className="rpm">{(c.rpm / 1000).toFixed(1)}k rpm</span>
+              </div>
+              <div className="car-bar-row">
+                <span className="bar-lbl">ACE</span>
                 <span className="bar"><i style={{ width: `${c.throttle}%`, background: "#00c853" }} /></span>
+              </div>
+              <div className="car-bar-row">
+                <span className="bar-lbl">FRE</span>
                 <span className="bar"><i style={{ width: `${c.brake}%`, background: "#2962ff" }} /></span>
               </div>
             </button>

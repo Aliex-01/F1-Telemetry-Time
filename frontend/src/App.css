@@ -9,11 +9,7 @@
   padding: 26px 0 20px;
   margin-bottom: 22px;
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: linear-gradient(to bottom, var(--bg) 60%, rgba(10, 10, 14, 0.85));
-  backdrop-filter: blur(6px);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -322,6 +318,57 @@
   padding: 10px 14px;
 }
 
+/* Barra de progreso indeterminada (carga de datos) */
+.progress {
+  padding: 12px 2px;
+}
+.progress-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.progress-track {
+  position: relative;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 35%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #e10600, #ff6b6b);
+  animation: progress-slide 1.15s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}
+
+/* ------------------------------------------------- entrada de vistas/secciones */
+/* Al cambiar de pestana (Analisis/Comparacion remontan) los bloques aparecen
+   con un fundido + leve deslizamiento hacia arriba, escalonado. */
+@keyframes view-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.analysis-layout > *,
+.compare > * {
+  animation: view-fade-up 0.4s ease-out both;
+}
+.analysis-layout > *:nth-child(2) { animation-delay: 0.06s; }
+.analysis-layout > *:nth-child(3) { animation-delay: 0.12s; }
+.compare > *:nth-child(2) { animation-delay: 0.05s; }
+.compare > *:nth-child(3) { animation-delay: 0.1s; }
+.compare > *:nth-child(4) { animation-delay: 0.15s; }
+.weather {
+  animation: view-fade-up 0.4s ease-out both;
+}
+
 /* ---------------------------------------------------------------- layout */
 .content {
   display: grid;
@@ -414,7 +461,9 @@
 .laps-table tbody tr {
   cursor: pointer;
   border-bottom: 1px solid var(--border-soft);
-  transition: background 0.12s;
+  /* La barra roja (box-shadow inset) crece desde 0 al seleccionar. */
+  box-shadow: inset 0 0 0 var(--accent);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 .laps-table tbody tr:hover {
   background: var(--surface-2);
@@ -422,6 +471,12 @@
 .laps-table tbody tr.sel {
   background: rgba(225, 6, 0, 0.12);
   box-shadow: inset 3px 0 0 var(--accent);
+  animation: lap-row-pop 0.5s ease-out;
+}
+/* Destello breve del fondo al seleccionar una vuelta. */
+@keyframes lap-row-pop {
+  0% { background: rgba(225, 6, 0, 0.32); }
+  100% { background: rgba(225, 6, 0, 0.12); }
 }
 .laps-table td.pb {
   color: #c9a3ff;
@@ -503,6 +558,28 @@
   font-weight: 700;
   width: 22px;
   text-align: right;
+  transition: color 0.3s ease;
+}
+/* En quali, la posicion de los que estan en zona de eliminacion (Q1: P16+, Q2: P11+)
+   va en rojo como referencia visual de quien cae. */
+.lb-pos.elim {
+  color: #ff2d2d;
+}
+/* Linea de corte: separa al ultimo salvado del primer eliminado. Va como overlay
+   sobre toda la fila (no border-top) para que cruce tambien la barra de color del
+   equipo en vez de partirse en esa esquina. */
+.tower-table tr.cutline {
+  position: relative;
+}
+.tower-table tr.cutline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1.5px;
+  background: #ff2d2d;
+  pointer-events: none;
 }
 .lb-code {
   font-weight: 800;
@@ -1113,42 +1190,89 @@
 .car.sel {
   box-shadow: 0 0 0 1.5px var(--accent), 0 6px 16px rgba(0, 0, 0, 0.4);
 }
+.car-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.car-pos {
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  min-width: 22px;
+}
 .car-code {
   font-weight: 800;
   font-size: 14px;
   letter-spacing: 0.5px;
+  flex: 1;
+}
+.car-drs {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+}
+.car-drs.on {
+  color: #062;
+  background: #00e676;
+  border-color: #00e676;
 }
 .car-speed {
   font-size: 24px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  margin-top: 2px;
 }
 .car-speed small {
   font-size: 11px;
   font-weight: 400;
   color: var(--text-dim);
 }
-.car-row {
+.car-meta {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 5px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 4px;
 }
-.car-row .gear {
+.car-meta .gear {
   font-size: 11px;
   font-weight: 700;
   color: #c9a3ff;
-  width: 26px;
 }
-.car-row .bar {
+.car-meta .rpm {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.car-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.car-bar-row .bar-lbl {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  width: 22px;
+}
+.car-bar-row .bar {
   flex: 1;
   height: 6px;
   background: var(--surface-3);
   border-radius: 3px;
   overflow: hidden;
 }
-.car-row .bar i {
+.car-bar-row .bar i {
   display: block;
   height: 100%;
   transition: width 0.12s linear;
@@ -1158,4 +1282,16 @@
   font-weight: 700;
   margin: 4px 0 10px;
   letter-spacing: 0.3px;
+}
+
+/* ------------------------------------------------- accesibilidad: menos motion */
+/* Si el usuario pide reducir el movimiento, anulamos animaciones y transiciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

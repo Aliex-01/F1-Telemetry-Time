@@ -98,6 +98,16 @@ class LiveFeed(BaseFeed):
                             for num, p in item.get("Entries", {}).items():
                                 s = state.setdefault(num, {})
                                 s.update({"x": p.get("X", 0), "y": p.get("Y", 0)})
+                    elif topic == "TimingData":
+                        # Feed incremental: solo trae los coches que cambian. Guardamos
+                        # la posicion de carrera para poder ordenar la parrilla en vivo.
+                        for num, line in payload.get("Lines", {}).items():
+                            pos = line.get("Position")
+                            if pos not in (None, ""):
+                                try:
+                                    state.setdefault(num, {})["pos"] = int(pos)
+                                except (TypeError, ValueError):
+                                    pass
                     else:
                         return
 

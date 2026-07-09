@@ -5,10 +5,15 @@
 import { useState } from "react";
 import { getStoredApiBase, setApiBase } from "../api/client";
 
+// En desarrollo (localhost) el backend es local, no hay tunel que configurar: se oculta.
+const isLocalhost = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+
 export function BackendConfig() {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(getStoredApiBase());
   const configured = getStoredApiBase() !== "";
+
+  if (isLocalhost) return null;
 
   function save() {
     setApiBase(value);

@@ -11,6 +11,7 @@ export interface CarSample {
   gear: number;
   rpm: number;
   drs: number;
+  pos?: number;
   x?: number;
   y?: number;
 }

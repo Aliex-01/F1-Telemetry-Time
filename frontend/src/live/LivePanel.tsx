@@ -4,7 +4,7 @@ import { useState } from "react";
 import { LiveDirect } from "./LiveDirect";
 import { ReplayPlayer } from "./ReplayPlayer";
 
-export function LivePanel() {
+export function LivePanel({ active = true }: { active?: boolean }) {
   const [mode, setMode] = useState<"replay" | "live">("replay");
 
   return (
@@ -20,7 +20,7 @@ export function LivePanel() {
         </button>
       </div>
 
-      {mode === "replay" ? <ReplayPlayer /> : <LiveDirect />}
+      {mode === "replay" ? <ReplayPlayer active={active} /> : <LiveDirect />}
     </section>
   );
 }

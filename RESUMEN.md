@@ -131,7 +131,7 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 | Archivo | Qué hace |
 |---|---|
 | `manager.py` | `LiveManager`: mantiene las conexiones WebSocket, difunde mensajes a todos los clientes, y gestiona el ciclo de vida del feed activo (solo uno a la vez). Guarda el último "meta" para clientes que se conectan tarde. |
-| `feeds.py` | `BaseFeed` (interfaz) y `LiveFeed`: envuelve el `SignalRClient` de FastF1, decodifica los mensajes `CarData.z` / `Position.z` del feed oficial y los reenvía por el manager. Corre en un hilo aparte. Solo funciona durante un GP en directo. |
+| `feeds.py` | `BaseFeed` (interfaz) y `LiveFeed`: envuelve el `SignalRClient` de FastF1, decodifica los mensajes `CarData.z` / `Position.z` y lee la posición de carrera de `TimingData`, y los reenvía por el manager. Corre en un hilo aparte. Solo funciona durante un GP en directo. |
 
 ---
 
@@ -152,19 +152,21 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 |---|---|
 | `BackendConfig.tsx` | Botón **⚙ Backend** en la cabecera: abre un panel para pegar la **URL del backend** (el túnel), la guarda en el navegador (`setApiBase`) y recarga. Para el despliegue: frontend en Pages + backend en el PC con URL cambiante. |
 | `Select.tsx` | Desplegable **personalizado** (no el `<select>` nativo) para poder tematizar también la lista que se abre: fondo oscuro, hover, selección resaltada, scroll, cierre con clic fuera / Escape. Lo usan Análisis y el reproductor. |
-| `LapsTable.tsx` | La tabla de vueltas de un piloto: tiempo, sectores, fase (Q1/Q2/Q3), neumático (solo el **círculo de color** con la inicial; el compuesto completo va en el `title`) y vida. Clic en una fila selecciona la vuelta. Compacta para no tener scroll horizontal. |
-| `TelemetryChart.tsx` | Las gráficas de una vuelta (velocidad, acelerador, freno, marcha, RPM, DRS), alineadas por distancia, con **relleno degradado**, rejilla, **glow** del color del canal en la línea, remates redondeados, grosor jerárquico (velocidad más gruesa) y punto activo con halo. Reporta el punto bajo el ratón para sincronizar la bolita del mapa. Oculta el DRS si está plano a 0 (temporada 2026). Memoizada. |
-| `CompareChart.tsx` | Las mismas gráficas pero **superpuestas** para varias vueltas, más la gráfica de **delta** acumulado (con **relleno degradado** bajo cada serie). Usa el color de equipo de cada vuelta, con glow suave, remates redondeados y punto activo con halo. Memoizada. |
+| `LapsTable.tsx` | La tabla de vueltas de un piloto: tiempo, sectores, fase (Q1/Q2/Q3), neumático (solo el **círculo de color** con la inicial; el compuesto completo va en el `title`) y vida. Clic en una fila selecciona la vuelta (con **destello y barra roja** animados). Compacta para no tener scroll horizontal. |
+| `TelemetryChart.tsx` | Las gráficas de una vuelta (velocidad, acelerador, freno, marcha, RPM, DRS), alineadas por distancia, con **relleno degradado**, rejilla, **glow** del color del canal en la línea, remates redondeados, grosor jerárquico (velocidad más gruesa) y punto activo con halo. Al abrir una vuelta las líneas se **trazan progresivamente** (animación de Recharts; no se re-dispara en el hover porque el componente está memoizado y `onHover` es estable). Reporta el punto bajo el ratón para sincronizar la bolita del mapa. Oculta el DRS si está plano a 0 (temporada 2026). Memoizada. |
+| `CompareChart.tsx` | Las mismas gráficas pero **superpuestas** para varias vueltas, más la gráfica de **delta** acumulado (con **relleno degradado** bajo cada serie). Usa el color de equipo de cada vuelta, con glow suave, remates redondeados, punto activo con halo y **trazado progresivo** al recomponer la comparación. Memoizada. |
 | `TrackMap.tsx` | Dibuja el circuito en SVG a partir de las coordenadas X/Y (no hay imagen precargada): calcula límites, escala manteniendo proporción, **rota** con el ángulo oficial y anota las **curvas**. Muestra bolitas de posición sincronizadas con el hover de las gráficas. La geometría está memoizada para que el hover sea fluido. |
 | `WeatherPanel.tsx` | Panel de meteorología: resumen (aire/pista/humedad/viento), gráfica de temperaturas con degradado, y una **franja de lluvia** que marca en qué minutos llovió (intervalos fusionados). |
+| `ProgressBar.tsx` | Barra de progreso **indeterminada** (franja animada) para las cargas de datos. Se usa en Análisis/Comparación, en la Repetición y en la meteorología, sustituyendo a los textos de "Cargando/Descargando…". Es indeterminada porque el backend descarga y adelgaza la sesión antes de responder, así que no hay % real. |
 
 ### 4.3 `live/` — la pestaña Tiempo real
 
 | Archivo | Qué hace |
 |---|---|
-| `LivePanel.tsx` | Contenedor con el conmutador **Repetición / Directo**; monta uno u otro. |
-| `ReplayPlayer.tsx` | El **reproductor de repeticiones**: descarga la sesión completa (`/replay`) una vez y la reproduce **en local** con reloj `requestAnimationFrame` — play/pausa, ±10 s, barra de tiempo (seek), velocidad, todo instantáneo. Interpola las posiciones para un movimiento fluido. **Mapa a la derecha y torre a la izquierda** (como en TV): la torre de carrera lleva gap al de delante/líder, neumático, **BOX** solo mientras está en el pit lane, **🏁** al cruzar meta en la última vuelta y baja al fondo a los **abandonos** (OUT); el ranking de prácticas/quali va cambiando de Q1→Q2→Q3. Muestra el **nº de vuelta del líder** en la barra, avisos en la esquina del mapa (**amarilla/roja** en el trazado, **SC/VSC** y **lluvia**) y, al elegir piloto, su **detalle en vivo** (velocidad/marcha/gas/freno) + sparkline. |
-| `LiveDirect.tsx` | La vista del **directo real** por WebSocket (solo funciona durante un GP en vivo): mapa + resumen de coches + detalle del piloto. |
+| `LivePanel.tsx` | Contenedor con el conmutador **Repetición / Directo**; monta uno u otro. Recibe `active` (si la pestaña Tiempo real está visible) y lo pasa al `ReplayPlayer`. En `App.tsx` se **mantiene montado siempre** (oculto con `display:none` cuando no está activo) para conservar la sesión cargada y el momento de la repetición al cambiar de pestaña; el reproductor **pausa** su avance mientras está oculto. |
+| `ReplayPlayer.tsx` | El **reproductor de repeticiones**: descarga la sesión completa (`/replay`) una vez y la reproduce **en local** con reloj `requestAnimationFrame` — play/pausa, ±10 s, barra de tiempo (seek), velocidad, todo instantáneo. Interpola las posiciones para un movimiento fluido. **Mapa a la derecha y torre a la izquierda** (como en TV): la torre de carrera lleva gap al de delante/líder, neumático, **BOX** solo mientras está en el pit lane, **🏁** al cruzar meta en la última vuelta y baja al fondo a los **abandonos** (OUT); el ranking de prácticas/quali va cambiando de Q1→Q2→Q3 y marca con una **línea de corte** roja (y el nº de posición en rojo) la **zona de eliminación** de la tanda (Q1: P16+, Q2: P11+). Cuando un piloto adelanta a otro, la fila **se desliza** a su nueva posición con una animación **FLIP** (solo actúa al cambiar el orden, no lee layout en cada frame). Muestra el **nº de vuelta del líder** en la barra, avisos en la esquina del mapa (**amarilla/roja** en el trazado, **SC/VSC** y **lluvia**) y, al elegir piloto, su **detalle en vivo** (velocidad/marcha/gas/freno) + **gráfica de velocidad de la vuelta en curso** (acotada a la vuelta que está dando ese piloto, con playhead; en prácticas/quali sin datos de vuelta cae a una ventana móvil de ~45 s). La parrilla de coches se ordena por **equipos** (`orderByTeam`, ver `gridOrder.ts`) con un orden **estático** según la **clasificación final** de la sesión (`finalPosByNum`: en carrera la posición del último registro, abandonos al fondo; en prácticas/quali la mejor vuelta de toda la sesión), así no salta durante la reproducción; cada tarjeta muestra posición, velocidad, marcha y barras de acelerador/freno etiquetadas. |
+| `LiveDirect.tsx` | La vista del **directo real** por WebSocket (solo funciona durante un GP en vivo): mapa + parrilla de coches + detalle del piloto. La parrilla se ordena por **equipos** de forma estable (`orderByTeam` de `gridOrder.ts`: suma de posiciones de los pilotos → mejor posición → nº de piloto; compañeros juntos, el mejor clasificado primero) y cada tarjeta muestra posición, velocidad, marcha, RPM, DRS y barras de acelerador/freno etiquetadas. |
+| `gridOrder.ts` | Utilidad compartida `orderByTeam`: ordena la parrilla de coches por equipos de forma estable (no salta con la velocidad). La usan tanto `LiveDirect` como `ReplayPlayer`. |
 | `LiveTrackMap.tsx` | El mapa de circuito para tiempo real: contorno + una **bolita por piloto** en su posición, rotado y con curvas (mismo tratamiento que en Análisis). En la repetición además **colorea el trazado**: el tramo del sector en **amarilla** (repartiendo los sectores de comisarios por la longitud del circuito) o **todo en rojo** si hay bandera roja. |
 | `useLiveFeed.ts` | Hook que gestiona la conexión WebSocket del directo y mantiene el estado en vivo (metadatos, último fotograma, historial del piloto seleccionado). |
 
@@ -173,7 +175,7 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 | Archivo | Qué es |
 |---|---|
 | `index.css` | El tema visual base: variables de color (paleta *motorsport* con rojo F1), fondo con degradados sutiles, scrollbars, fuente **Titillium Web**. |
-| `App.css` | El grueso de los estilos: cabecera, pestañas, selectores y el desplegable custom, tarjetas de sección, tabla de vueltas, mapas, gráficas, torre de tiempos, meteo, reproductor, etc. |
+| `App.css` | El grueso de los estilos: cabecera, pestañas, selectores y el desplegable custom, tarjetas de sección, tabla de vueltas, mapas, gráficas, torre de tiempos, meteo, reproductor, etc. Incluye las **animaciones de UI** (entrada escalonada de secciones al cambiar de pestaña, destello de la vuelta seleccionada, línea de corte de la quali) y un bloque **`prefers-reduced-motion`** que las anula si el usuario pide menos movimiento. |
 
 ---
 
@@ -193,13 +195,15 @@ Los `BaseModel` de Pydantic que definen exactamente qué forma tienen las respue
 
 | Archivo | Qué es |
 |---|---|
+| `README.md` (raíz) | Portada del repo en GitHub: qué es, características, stack, puesta en marcha, despliegue y punteros a RESUMEN/DESIGN/DEPLOY. |
 | `DESIGN.md` | El documento de diseño: arquitectura, contrato de la API, plan por fases y notas técnicas. |
 | `DEPLOY.md` | Guía de despliegue: frontend en **Cloudflare Pages** + backend en tu PC expuesto por **túnel** de Cloudflare. Pasos, CORS y flujo de la URL configurable. |
 | `start-online.bat` | Arranca el backend (`uvicorn :8080`) y el **túnel** `cloudflared` de un tirón, para poner el backend online desde tu PC. |
 | `backend/pyproject.toml` | Dependencias del backend (FastAPI, uvicorn, fastf1, pandas, numpy, pydantic) y config de ruff. Entorno con **uv** (`uv sync`, `uv run`). |
 | `backend/README.md` | Cómo levantar el backend (`uv run uvicorn app.main:app --reload --port 8080`) y notas sobre la caché. |
 | `frontend/package.json` | Dependencias del frontend (React, Vite, TypeScript, **Recharts** para las gráficas) y scripts (`npm run dev`, `build`). |
-| `frontend/index.html` | HTML base: carga la fuente Titillium Web y monta `src/main.tsx`. |
+| `frontend/index.html` | HTML base: carga la fuente Titillium Web, enlaza `favicon.svg` y monta `src/main.tsx`. |
+| `frontend/public/favicon.svg` | Favicon propio: cuadrado oscuro redondeado con una traza de telemetría en rojo F1. |
 | `frontend/vite.config.ts` | Config de Vite (plugin de React; respeta la variable `PORT`). |
 | `.gitignore` (raíz) | Ignora la caché de FastF1, `node_modules`, entornos, etc. |
 

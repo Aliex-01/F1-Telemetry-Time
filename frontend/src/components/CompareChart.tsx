@@ -77,7 +77,7 @@ export const CompareChart = memo(function CompareChart({ data, colors, onHover }
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis dataKey="distance" unit=" m" tick={{ fontSize: 11, fill: "#8a8f9c" }} tickLine={false} axisLine={{ stroke: "rgba(255,255,255,0.08)" }} minTickGap={40} />
               <YAxis domain={ch.domain ?? ["auto", "auto"]} tick={{ fontSize: 11, fill: "#8a8f9c" }} tickLine={false} axisLine={false} width={40} />
-              <Tooltip labelFormatter={(v) => `${v} m`} cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }} />
+              <Tooltip labelFormatter={(v) => `${v} m`} formatter={(val) => `${Math.round(Number(val))}`} cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1 }} />
               {laps.map((lap, j) => (
                 <Line
                   key={lap.label}
@@ -90,7 +90,11 @@ export const CompareChart = memo(function CompareChart({ data, colors, onHover }
                   strokeLinejoin="round"
                   style={{ filter: `url(#cmp-glow-${ch.key}-${j})` }}
                   activeDot={{ r: 3.5, stroke: "#fff", strokeWidth: 1.5, filter: `url(#cmp-glow-${ch.key}-${j})` }}
-                  isAnimationActive={false}
+                  // Trazado progresivo al recomponer la comparacion. No se re-dispara
+                  // en el hover (componente memoizado, onHover estable).
+                  isAnimationActive={true}
+                  animationDuration={1000}
+                  animationEasing="ease-out"
                 />
               ))}
             </LineChart>
@@ -136,7 +140,9 @@ export const CompareChart = memo(function CompareChart({ data, colors, onHover }
                 fillOpacity={1}
                 dot={false}
                 activeDot={{ r: 3.5, stroke: "#fff", strokeWidth: 1.5 }}
-                isAnimationActive={false}
+                isAnimationActive={true}
+                animationDuration={1000}
+                animationEasing="ease-out"
               />
             ))}
           </ComposedChart>

@@ -563,14 +563,26 @@ def get_events(year: int) -> list[EventInfo]:
 
 def get_sessions(year: int, rnd: int) -> list[SessionInfo]:
     event = fastf1.get_event(year, rnd)
+    now = pd.Timestamp.utcnow()
     available: list[SessionInfo] = []
     for i in range(1, 6):
         name = event.get(f"Session{i}")
         if not name or pd.isna(name):
             continue
         code = _session_code(str(name))
-        if code:
-            available.append(SessionInfo(code=code, name=str(name)))
+        if not code:
+            continue
+        # Fecha de inicio (UTC) de la sesion, para marcar las que aun no se han
+        # disputado (no habra datos: evita pedirlas y dar un error feo).
+        start = event.get(f"Session{i}DateUtc")
+        date_iso, upcoming = None, False
+        if pd.notna(start):
+            start = pd.Timestamp(start)
+            if start.tzinfo is None:
+                start = start.tz_localize("UTC")
+            date_iso = start.isoformat()
+            upcoming = start > now
+        available.append(SessionInfo(code=code, name=str(name), date=date_iso, upcoming=upcoming))
     # Ordena segun el orden natural del fin de semana.
     available.sort(key=lambda s: SESSION_ORDER.index(s.code) if s.code in SESSION_ORDER else 99)
     return available

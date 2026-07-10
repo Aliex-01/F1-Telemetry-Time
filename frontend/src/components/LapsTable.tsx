@@ -1,5 +1,6 @@
 // Tabla de vueltas de un piloto: tiempo, sectores, neumatico y stint.
 // Al hacer clic en una fila se selecciona esa vuelta.
+import { useMemo } from "react";
 import type { LapInfo } from "../types/api";
 
 interface Props {
@@ -24,7 +25,24 @@ const TYRE_COLOR: Record<string, string> = {
   WET: "#0067ad",
 };
 
+// Menor valor no nulo de una columna (mejor tiempo del piloto en esa métrica).
+function bestOf(vals: (number | null)[]): number | null {
+  const nums = vals.filter((v): v is number => v != null);
+  return nums.length ? Math.min(...nums) : null;
+}
+
 export function LapsTable({ laps, selected, onSelect }: Props) {
+  // Mejores marcas del piloto (en púrpura), por columna.
+  const best = useMemo(
+    () => ({
+      lap: bestOf(laps.map((l) => l.lapTime)),
+      s1: bestOf(laps.map((l) => l.sector1)),
+      s2: bestOf(laps.map((l) => l.sector2)),
+      s3: bestOf(laps.map((l) => l.sector3)),
+    }),
+    [laps],
+  );
+
   if (laps.length === 0) return null;
 
   return (
@@ -51,12 +69,12 @@ export function LapsTable({ laps, selected, onSelect }: Props) {
             >
               <td>L{l.lapNumber}</td>
               <td>{l.segment ?? ""}</td>
-              <td className={l.isPersonalBest ? "pb" : ""}>
-                {fmt(l.lapTime)} {l.isPersonalBest ? "⚡" : ""}
+              <td className={l.lapTime != null && l.lapTime === best.lap ? "pb" : ""}>
+                {fmt(l.lapTime)}
               </td>
-              <td>{fmt(l.sector1)}</td>
-              <td>{fmt(l.sector2)}</td>
-              <td>{fmt(l.sector3)}</td>
+              <td className={l.sector1 != null && l.sector1 === best.s1 ? "pb" : ""}>{fmt(l.sector1)}</td>
+              <td className={l.sector2 != null && l.sector2 === best.s2 ? "pb" : ""}>{fmt(l.sector2)}</td>
+              <td className={l.sector3 != null && l.sector3 === best.s3 ? "pb" : ""}>{fmt(l.sector3)}</td>
               <td>
                 {l.compound ? (
                   <span

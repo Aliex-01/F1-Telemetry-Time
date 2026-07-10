@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api/client";
 import { BackendConfig } from "./components/BackendConfig";
 import { CompareChart } from "./components/CompareChart";
@@ -7,8 +7,12 @@ import { ProgressBar } from "./components/ProgressBar";
 import { Select } from "./components/Select";
 import { TelemetryChart } from "./components/TelemetryChart";
 import { TrackMap } from "./components/TrackMap";
+import { TyreStrategy } from "./components/TyreStrategy";
 import { WeatherPanel } from "./components/WeatherPanel";
-import { LivePanel } from "./live/LivePanel";
+
+// Code-splitting: la pestana Tiempo real (reproductor + graficas) se carga aparte,
+// asi la carga inicial de Analisis es mas ligera.
+const LivePanel = lazy(() => import("./live/LivePanel").then((m) => ({ default: m.LivePanel })));
 import type {
   CircuitInfo,
   CompareResponse,
@@ -50,14 +54,48 @@ function fmtLap(s: number | null): string {
   return m > 0 ? `${m}:${rest.padStart(6, "0")}` : rest;
 }
 
+type View = "analysis" | "compare" | "live";
+
+// Estado de seleccion que se sincroniza con la URL (enlaces compartibles) y se
+// recuerda entre visitas (localStorage).
+type Selection = {
+  view?: View;
+  year?: number;
+  round?: number;
+  session?: string;
+  driver?: string;
+  lap?: number;
+};
+
+const SEL_STORAGE_KEY = "f1_last_selection";
+
+// Lee la seleccion inicial: primero de la URL (?y=..&gp=..&s=..&d=..&lap=..&view=..),
+// y si no hay parametros, de la ultima guardada en el navegador.
+function readInitialSelection(): Selection {
+  if (typeof window === "undefined") return {};
+  const p = new URLSearchParams(window.location.search);
+  const num = (k: string) => (p.get(k) != null ? Number(p.get(k)) : undefined);
+  const v = p.get("view");
+  const view = v === "compare" || v === "live" ? (v as View) : undefined;
+  if ([...p.keys()].length > 0) {
+    return { view, year: num("y"), round: num("gp"), session: p.get("s") ?? undefined, driver: p.get("d") ?? undefined, lap: num("lap") };
+  }
+  try {
+    return JSON.parse(localStorage.getItem(SEL_STORAGE_KEY) || "{}") as Selection;
+  } catch {
+    return {};
+  }
+}
+
 export default function App() {
+  const initialSel = useRef(readInitialSelection()).current;
   const [seasons, setSeasons] = useState<number[]>([]);
   const [events, setEvents] = useState<EventInfo[]>([]);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
   const [laps, setLaps] = useState<LapInfo[]>([]);
 
-  const [year, setYear] = useState<number | null>(null);
+  const [year, setYear] = useState<number | null>(initialSel.year ?? null);
   const [round, setRound] = useState<number | null>(null);
   const [session, setSession] = useState<string | null>(null);
   const [driver, setDriver] = useState<string | null>(null);
@@ -75,8 +113,12 @@ export default function App() {
   // Clave de la ultima sesion cuya telemetria ya se ha precargado (prefetch).
   const prefetchedRef = useRef<string | null>(null);
 
+  // Seleccion pendiente de restaurar (deep-link): se va aplicando nivel a nivel a
+  // medida que llega cada lista dependiente (eventos -> sesiones -> pilotos -> vueltas).
+  const pendingSel = useRef<Selection>(initialSel);
+
   // Pestana/seccion activa.
-  const [view, setView] = useState<"analysis" | "compare" | "live">("analysis");
+  const [view, setView] = useState<View>(initialSel.view ?? "analysis");
 
   // Comparacion: cesta de vueltas (misma sesion) + resultado del backend.
   const [compareRefs, setCompareRefs] = useState<LapRef[]>([]);
@@ -92,6 +134,17 @@ export default function App() {
     () => (compareData ? [{ x: compareData.laps[0].x, y: compareData.laps[0].y, color: "#3a3a42" }] : []),
     [compareData],
   );
+
+  // Mapa de dominancia (solo con 2 vueltas): cada tramo del trazado se pinta del
+  // color de la vuelta que va mas rapida ahi (mayor velocidad en ese punto).
+  const dominance = useMemo(() => {
+    if (!compareData || compareData.laps.length !== 2) return null;
+    const [a, b] = compareData.laps;
+    const ca = a.color ?? COMPARE_COLORS[0];
+    const cb = b.color ?? COMPARE_COLORS[1];
+    const segColors = a.speed.map((sa, i) => (sa >= b.speed[i] ? ca : cb));
+    return { traces: [{ x: a.x, y: a.y, segColors }], ca, cb, la: a.label, lb: b.label };
+  }, [compareData]);
 
   // Setters de hover limitados a un update por frame (movimiento fluido).
   const onHoverLap = useRafSetter(setHoverIdx);
@@ -113,10 +166,60 @@ export default function App() {
     return () => window.removeEventListener("resize", measureUnderline);
   }, [measureUnderline]);
 
+  // Sesion seleccionada y si aun no se ha disputado (sin datos): en ese caso no
+  // pedimos nada al backend y mostramos un aviso amable en vez de un error feo.
+  const currentSession = sessions.find((s) => s.code === session) ?? null;
+  const upcoming = currentSession?.upcoming ?? false;
+
   // Carga inicial de temporadas.
   useEffect(() => {
     api.seasons().then(setSeasons).catch((e) => setError(String(e)));
   }, []);
+
+  // Restauracion del deep-link nivel a nivel: cuando llega cada lista dependiente,
+  // si habia una seleccion pendiente valida, la aplicamos y la consumimos.
+  useEffect(() => {
+    const want = pendingSel.current.round;
+    if (want != null && events.some((e) => e.round === want)) {
+      pendingSel.current.round = undefined;
+      setRound(want);
+    }
+  }, [events]);
+  useEffect(() => {
+    const want = pendingSel.current.session;
+    if (want != null && sessions.some((s) => s.code === want)) {
+      pendingSel.current.session = undefined;
+      setSession(want);
+    }
+  }, [sessions]);
+  useEffect(() => {
+    const want = pendingSel.current.driver;
+    if (want != null && drivers.some((d) => d.code === want)) {
+      pendingSel.current.driver = undefined;
+      setDriver(want);
+    }
+  }, [drivers]);
+  useEffect(() => {
+    const want = pendingSel.current.lap;
+    if (want != null && laps.some((l) => l.lapNumber === want)) {
+      pendingSel.current.lap = undefined;
+      setLap(want);
+    }
+  }, [laps]);
+
+  // Refleja la seleccion en la URL (enlace compartible) y la recuerda en el navegador.
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (view !== "analysis") p.set("view", view);
+    if (year != null) p.set("y", String(year));
+    if (round != null) p.set("gp", String(round));
+    if (session) p.set("s", session);
+    if (driver) p.set("d", driver);
+    if (lap != null) p.set("lap", String(lap));
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    localStorage.setItem(SEL_STORAGE_KEY, JSON.stringify({ view, year, round, session, driver, lap }));
+  }, [view, year, round, session, driver, lap]);
 
   // Cascada: cada selección resetea las siguientes y carga la lista dependiente.
   useEffect(() => {
@@ -133,15 +236,15 @@ export default function App() {
   // Info del circuito (rotacion + curvas) para orientar y anotar el mapa.
   useEffect(() => {
     setCircuit(null);
-    if (year != null && round != null && session)
+    if (year != null && round != null && session && !upcoming)
       api.circuit(year, round, session).then(setCircuit).catch(() => setCircuit(null));
-  }, [year, round, session]);
+  }, [year, round, session, upcoming]);
 
   useEffect(() => {
     setDrivers([]); setDriver(null);
-    if (year != null && round != null && session)
+    if (year != null && round != null && session && !upcoming)
       loadWithSpinner(() => api.drivers(year, round, session).then(setDrivers));
-  }, [year, round, session]);
+  }, [year, round, session, upcoming]);
 
   useEffect(() => {
     setLaps([]); setLap(null);
@@ -242,16 +345,16 @@ export default function App() {
           <Select label="Gran Premio" value={round} onChange={(v) => setRound(v)}
             options={events.map((e) => ({ value: e.round, label: e.name }))} />
           <Select label="Sesión" value={session} onChange={(v) => setSession(v)}
-            options={sessions.map((s) => ({ value: s.code, label: s.name }))} />
+            options={sessions.map((s) => ({ value: s.code, label: s.upcoming ? `${s.name} · próximamente` : s.name }))} />
           <Select label="Piloto" value={driver} onChange={(v) => setDriver(v)}
             options={drivers.map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` }))} />
           <Select label="Vuelta" value={lap} onChange={(v) => setLap(v)}
             options={laps.map((l) => ({
               value: l.lapNumber,
-              label: `L${l.lapNumber}${l.segment ? ` [${l.segment}]` : ""} · ${fmtLap(l.lapTime)}${l.isPersonalBest ? " ⚡" : ""}`,
+              label: `L${l.lapNumber}${l.segment ? ` [${l.segment}]` : ""} · ${fmtLap(l.lapTime)}`,
             }))} />
           <button className="add-compare selectors-add" onClick={addToCompare} disabled={lap == null}>
-            ➕ {lap != null ? `Añadir ${driver} L${lap}` : "Añadir vuelta"} a comparar
+            {lap != null ? `Añadir ${driver} L${lap}` : "Añadir vuelta"} a comparar
           </button>
         </div>
       )}
@@ -263,11 +366,19 @@ export default function App() {
         <p className="status error">{error}</p>
       )}
 
-      {view === "analysis" && year != null && round != null && session && (
+      {view === "analysis" && year != null && round != null && session && !upcoming && (
         <WeatherPanel year={year} round={round} session={session} />
       )}
 
-      {view === "analysis" && (
+      {view === "analysis" && upcoming && (
+        <p className="status">
+          Esta sesión aún no se ha disputado
+          {currentSession?.date ? ` (empieza el ${new Date(currentSession.date).toLocaleString()})` : ""}.
+          Todavía no hay datos disponibles.
+        </p>
+      )}
+
+      {view === "analysis" && !upcoming && (
         <div className="analysis-layout">
           {/* Fila superior: tabla de vueltas + mapa de pista. */}
           <div className="analysis-top">
@@ -295,6 +406,9 @@ export default function App() {
             )}
           </div>
 
+          {/* Estrategia de neumaticos del piloto (stints por compuesto). */}
+          {laps.length > 0 && <TyreStrategy laps={laps} />}
+
           {/* Las graficas de telemetria, a lo ancho de toda la pagina. */}
           {telemetry && (
             <div className="charts">
@@ -317,7 +431,7 @@ export default function App() {
           {compareRefs.length === 0 && (
             <p className="status">
               Aún no has añadido vueltas. Ve a <strong>Análisis</strong>, elige una vuelta y pulsa
-              «➕ Añadir a la comparación».
+              «Añadir a comparar».
             </p>
           )}
           <div className="compare-chips">
@@ -339,14 +453,22 @@ export default function App() {
             <>
               <div className="track-block">
                 <div className="track-title">
-                  Trazadas superpuestas — pasa el ratón por las gráficas para ver las posiciones
+                  {dominance
+                    ? "Dominancia — cada tramo, del color de la vuelta más rápida ahí"
+                    : "Trazadas superpuestas — pasa el ratón por las gráficas para ver las posiciones"}
                 </div>
+                {dominance && (
+                  <div className="dominance-legend">
+                    <span><span className="dot" style={{ background: dominance.ca }} /> {dominance.la}</span>
+                    <span><span className="dot" style={{ background: dominance.cb }} /> {dominance.lb}</span>
+                  </div>
+                )}
                 <TrackMap
                   mode="plain"
                   lineWidth={12}
                   rotation={circuit?.rotation ?? 0}
                   corners={circuit?.corners}
-                  traces={compareTraces}
+                  traces={dominance ? dominance.traces : compareTraces}
                   highlights={
                     compareHoverIdx != null
                       ? compareData.laps.map((lap, i) => ({
@@ -367,7 +489,9 @@ export default function App() {
       {/* Siempre montado (oculto con CSS) para conservar el estado de la repeticion
           -sesion cargada y momento- al cambiar a Analisis/Comparacion y volver. */}
       <div style={{ display: view === "live" ? undefined : "none" }}>
-        <LivePanel active={view === "live"} />
+        <Suspense fallback={<ProgressBar label="Cargando tiempo real…" />}>
+          <LivePanel active={view === "live"} />
+        </Suspense>
       </div>
 
       <footer className="app-footer">

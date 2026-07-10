@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api/client";
+import { IconAlert, IconBack10, IconDownload, IconFlag, IconFlagWave, IconFwd10, IconPause, IconPlay, IconRain, IconToStart } from "../components/icons";
 import { ProgressBar } from "../components/ProgressBar";
 import { Select } from "../components/Select";
 import type { EventInfo, ReplayData, SessionInfo } from "../types/api";
@@ -151,6 +152,27 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
     posRef.current = c; setPos(c);
   }
   const skip = (secs: number) => data && seek(posRef.current + secs / data.dt);
+
+  // Atajos de teclado (solo con la pestana visible y datos cargados): espacio =
+  // play/pausa, flechas ← → = ±10 s, ↑ ↓ = mas/menos velocidad, Inicio = al principio.
+  useEffect(() => {
+    if (!active || !data) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+      switch (e.key) {
+        case " ": e.preventDefault(); setPlaying((p) => !p); break;
+        case "ArrowLeft": e.preventDefault(); skip(-10); break;
+        case "ArrowRight": e.preventDefault(); skip(10); break;
+        case "ArrowUp": e.preventDefault(); setSpeed((s) => SPEEDS[Math.min(SPEEDS.indexOf(s) + 1, SPEEDS.length - 1)]); break;
+        case "ArrowDown": e.preventDefault(); setSpeed((s) => SPEEDS[Math.max(SPEEDS.indexOf(s) - 1, 0)]); break;
+        case "Home": e.preventDefault(); seek(0); break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, data]);
 
   const byNum = useMemo(
     () => new Map((data?.drivers ?? []).map((d) => [String(d.number), d])),
@@ -383,7 +405,7 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
         <Select label="Sesión" value={session} onChange={setSession}
           options={sessions.map((s) => ({ value: s.code, label: s.name }))} />
         <button className="add-compare replay-load" onClick={load} disabled={loading || !session}>
-          {loading ? "Cargando…" : "📥 Cargar repetición"}
+          {loading ? "Cargando…" : <><IconDownload /> Cargar repetición</>}
         </button>
       </div>
 
@@ -395,12 +417,12 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
           {/* Barra de reproductor */}
           <div className="player">
             <div className="player-buttons">
-              <button onClick={() => seek(0)} title="Al inicio">⏮</button>
-              <button onClick={() => skip(-10)} title="-10 s">⏪</button>
-              <button className="play" onClick={() => setPlaying((p) => !p)}>
-                {playing ? "⏸" : "▶"}
+              <button onClick={() => seek(0)} title="Al inicio"><IconToStart /></button>
+              <button onClick={() => skip(-10)} title="-10 s"><IconBack10 /></button>
+              <button className="play" onClick={() => setPlaying((p) => !p)} title={playing ? "Pausa" : "Play"}>
+                {playing ? <IconPause size={16} /> : <IconPlay size={16} />}
               </button>
-              <button onClick={() => skip(10)} title="+10 s">⏩</button>
+              <button onClick={() => skip(10)} title="+10 s"><IconFwd10 /></button>
               <span className="player-time">{mmss(elapsed)} / {mmss(total)}</span>
               {data.type === "race" && totalLaps > 0 && (
                 <span className="player-lap">Vuelta {leaderLap}/{totalLaps}</span>
@@ -447,7 +469,7 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
                         <td className="lb-pos">{i + 1}</td>
                         <td className="lb-code" style={{ borderLeftColor: d?.teamColor ?? "#888" }}>
                           {d?.code ?? num}
-                          {fin && <span className="fin-tag" title="Ha terminado la carrera">🏁</span>}
+                          {fin && <span className="fin-tag" title="Ha terminado la carrera"><IconFlag size={13} /></span>}
                         </td>
                         <td className="lb-gap">{dnf ? "OUT" : inPit ? "BOX" : i === 0 ? "Líder" : `+${gap.toFixed(1)}`}</td>
                         <td className="tower-tyre">
@@ -511,7 +533,9 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
                     boxShadow: "0 2px 6px rgba(0,0,0,.4)",
                   }}
                 >
-                  {safety.kind === "SC" ? "🚧 Safety Car en pista" : "🐢 Virtual Safety Car (VSC)"}
+                  {safety.kind === "SC"
+                    ? <><IconAlert size={14} /> Safety Car en pista</>
+                    : <><IconFlagWave size={14} /> Virtual Safety Car (VSC)</>}
                 </div>
               )}
               {raining && (
@@ -524,7 +548,7 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
                     boxShadow: "0 2px 6px rgba(0,0,0,.4)",
                   }}
                 >
-                  🌧️ Lluvia
+                  <IconRain size={13} /> Lluvia
                 </div>
               )}
             </div>

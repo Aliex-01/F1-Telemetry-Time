@@ -1,6 +1,7 @@
 // Panel de meteorologia de la sesion: resumen (temperaturas, humedad, viento, lluvia)
 // y evolucion de las temperaturas de aire y pista a lo largo de la sesion.
 import { memo, useEffect, useState } from "react";
+import { IconRain, IconSun } from "./icons";
 import {
   Area,
   AreaChart,
@@ -95,7 +96,7 @@ export const WeatherPanel = memo(function WeatherPanel({ year, round, session }:
       <div className="weather-head">
         <h3>Meteorología</h3>
         <span className={`weather-badge ${rained ? "wet" : "dry"}`}>
-          {rained ? "🌧️ Lluvia" : "☀️ Seco"}
+          {rained ? <><IconRain size={13} /> Lluvia</> : <><IconSun size={13} /> Seco</>}
         </span>
       </div>
 
@@ -131,7 +132,7 @@ export const WeatherPanel = memo(function WeatherPanel({ year, round, session }:
 
       {rainIntervals.length > 0 && (
         <div className="rain-strip">
-          <span className="rain-strip-label">🌧️ Lluvia</span>
+          <span className="rain-strip-label"><IconRain size={12} /> Lluvia</span>
           {/* La pista se alinea con el area de trazado (offset del eje Y + margen dcho.) */}
           <div className="rain-track">
             {rainIntervals.map(([a, b], i) => (

@@ -1,6 +1,7 @@
 // Contenedor de la pestaña "Tiempo real": alterna entre Repetición (reproductor
 // local de una sesión histórica) y Directo (WebSocket de un GP en vivo).
 import { useState } from "react";
+import { IconStopwatch } from "../components/icons";
 import { LiveDirect } from "./LiveDirect";
 import { ReplayPlayer } from "./ReplayPlayer";
 
@@ -13,10 +14,10 @@ export function LivePanel({ active = true }: { active?: boolean }) {
 
       <div className="mode-toggle">
         <button className={mode === "replay" ? "active" : ""} onClick={() => setMode("replay")}>
-          ⏱ Repetición
+          <IconStopwatch /> Repetición
         </button>
         <button className={mode === "live" ? "active" : ""} onClick={() => setMode("live")}>
-          🔴 Directo
+          <span className="live-dot" /> Directo
         </button>
       </div>
 

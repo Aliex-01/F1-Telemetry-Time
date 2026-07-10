@@ -17,6 +17,9 @@ interface Trace {
   y: number[];
   speed?: number[];
   color?: string;
+  // Color por punto: pinta el trazado por segmentos (p. ej. mapa de dominancia,
+  // cada tramo del color de la vuelta mas rapida ahi). Tiene prioridad sobre color.
+  segColors?: string[];
 }
 
 interface Props {
@@ -85,6 +88,18 @@ export const TrackMap = memo(function TrackMap({
             x2={px(trace.x[i + 1])} y2={py(trace.y[i + 1])}
             stroke={speedColor((trace.speed![i] + trace.speed![i + 1]) / 2, min, max)}
             strokeWidth={6} strokeLinecap="round"
+          />
+        ));
+      }
+      if (trace.segColors) {
+        // Trazado por segmentos con un color por punto (mapa de dominancia).
+        return trace.x.slice(0, -1).map((_, i) => (
+          <line
+            key={`${ti}-${i}`}
+            x1={px(trace.x[i])} y1={py(trace.y[i])}
+            x2={px(trace.x[i + 1])} y2={py(trace.y[i + 1])}
+            stroke={trace.segColors![i]}
+            strokeWidth={lineWidth} strokeLinecap="round"
           />
         ));
       }

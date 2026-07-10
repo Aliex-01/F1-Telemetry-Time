@@ -15,6 +15,8 @@ class EventInfo(BaseModel):
 class SessionInfo(BaseModel):
     code: str  # FP1, FP2, FP3, SQ, S, Q, R
     name: str
+    date: str | None = None  # ISO (UTC) de inicio de la sesion, si se conoce
+    upcoming: bool = False  # True si la sesion aun no se ha disputado (no hay datos)
 
 
 class DriverInfo(BaseModel):

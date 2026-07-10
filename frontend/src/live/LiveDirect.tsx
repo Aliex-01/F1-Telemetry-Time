@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api/client";
+import { IconStop } from "../components/icons";
 import { LiveTrackMap } from "./LiveTrackMap";
 import { useLiveFeed } from "./useLiveFeed";
 import { NO_POS, orderByTeam } from "./gridOrder";
@@ -42,8 +43,8 @@ export function LiveDirect() {
         <span className={`dot-conn ${connected ? "on" : "off"}`} />
         {connected ? "WebSocket conectado" : "Conectando…"}
         <span className="sep" />
-        <button onClick={startLive} disabled={busy} title="Solo funciona durante un GP en directo">🔴 Conectar al directo</button>
-        <button onClick={stop} disabled={busy}>⏹ Parar</button>
+        <button onClick={startLive} disabled={busy} title="Solo funciona durante un GP en directo"><span className="live-dot" /> Conectar al directo</button>
+        <button onClick={stop} disabled={busy}><IconStop size={13} /> Parar</button>
       </div>
 
       <p className="status">

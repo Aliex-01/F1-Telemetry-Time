@@ -11,6 +11,8 @@ export interface EventInfo {
 export interface SessionInfo {
   code: string; // FP1, FP2, FP3, SQ, S, Q, R
   name: string;
+  date: string | null; // ISO (UTC) de inicio, si se conoce
+  upcoming: boolean; // true si la sesión aún no se ha disputado (no hay datos)
 }
 
 export interface DriverInfo {

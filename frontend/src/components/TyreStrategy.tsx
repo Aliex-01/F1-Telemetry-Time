@@ -2,15 +2,7 @@
 // stints (tramos con el mismo compuesto), de ancho proporcional a su nº de vueltas.
 import { useMemo } from "react";
 import type { LapInfo } from "../types/api";
-
-// Colores oficiales por compuesto (mismo criterio que la tabla de vueltas).
-const TYRE_COLOR: Record<string, string> = {
-  SOFT: "#ff3333",
-  MEDIUM: "#ffdd00",
-  HARD: "#eeeeee",
-  INTERMEDIATE: "#43b02a",
-  WET: "#0067ad",
-};
+import { TYRE_COLOR } from "./tyres";
 
 interface Props {
   laps: LapInfo[];

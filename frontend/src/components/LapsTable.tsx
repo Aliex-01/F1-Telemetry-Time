@@ -2,6 +2,7 @@
 // Al hacer clic en una fila se selecciona esa vuelta.
 import { useMemo } from "react";
 import type { LapInfo } from "../types/api";
+import { TYRE_COLOR } from "./tyres";
 
 interface Props {
   laps: LapInfo[];
@@ -15,15 +16,6 @@ function fmt(s: number | null): string {
   const rest = (s - m * 60).toFixed(3);
   return m > 0 ? `${m}:${rest.padStart(6, "0")}` : rest;
 }
-
-// Colores por compuesto de neumatico (codigo oficial F1).
-const TYRE_COLOR: Record<string, string> = {
-  SOFT: "#ff3333",
-  MEDIUM: "#ffdd00",
-  HARD: "#eeeeee",
-  INTERMEDIATE: "#43b02a",
-  WET: "#0067ad",
-};
 
 // Menor valor no nulo de una columna (mejor tiempo del piloto en esa métrica).
 function bestOf(vals: (number | null)[]): number | null {

@@ -12,6 +12,18 @@ REM     Funnel habilitado para este equipo.
 
 set "TS=%ProgramFiles%\Tailscale\tailscale.exe"
 
+echo === Comprobando el token de F1TV (necesario para el directo) ===
+REM El token caduca cada pocos dias. Solo renovamos si falta o esta a punto (<24h);
+REM asi no te pide login en cada arranque. La reautenticacion abre el navegador.
+pushd "%~dp0backend"
+uv run python -m app.live.auth
+if errorlevel 1 (
+    echo Renovando token de F1TV: se abrira el navegador para que inicies sesion...
+    uv run python -m fastf1 auth f1tv --authenticate
+)
+popd
+echo.
+
 echo === Arrancando backend (uvicorn :8080) en otra ventana ===
 start "F1 backend" cmd /k "cd /d %~dp0backend && uv run uvicorn app.main:app --port 8080"
 

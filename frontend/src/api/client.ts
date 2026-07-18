@@ -113,6 +113,16 @@ export const api = {
   },
 
   // ---- tiempo real (directo) ----
-  liveStart: () => post<{ started: string }>("/live/live/start", {}),
+  liveStart: () =>
+    post<{ started: string | null; auth: AuthStatus }>("/live/live/start", {}),
   liveStop: () => post<{ stopped: boolean }>("/live/stop", {}),
+  liveAuth: () => get<AuthStatus>("/live/auth"),
 };
+
+/** Estado del token de F1TV (ver backend live/auth.py). */
+export interface AuthStatus {
+  ok: boolean;
+  state: "ok" | "expired" | "missing" | "unreadable";
+  expiresAt: string | null;
+  message: string;
+}

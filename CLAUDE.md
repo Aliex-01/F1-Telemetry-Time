@@ -66,4 +66,5 @@ npx tsc --noEmit   # typecheck
 ## Git
 
 - No hagas `git push` nunca. Puedes preparar cambios y hacer `git add` + `git commit` con un buen mensaje **cuando yo lo pida**; el push lo hago yo tras verificar.
+- **Sin coautoría**: los commits van solo con mi autoría. No añadas el trailer `Co-Authored-By: Claude ...` al mensaje; termina en la última línea de contenido.
 - Si creas, mueves o renombras un archivo, actualiza **RESUMEN.md** antes de terminar la tarea.

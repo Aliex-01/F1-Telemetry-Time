@@ -142,6 +142,78 @@ def _circuit_meta(ses: fastf1.core.Session) -> tuple[float, list[dict], list[lis
     return rotation, corners, track
 
 
+def find_current_event(when: pd.Timestamp | None = None) -> tuple[int, int, str] | None:
+    """El GP que se esta disputando ahora mismo -> (year, round, location).
+
+    El fin de semana va de viernes a domingo y `EventDate` apunta al domingo, asi
+    que aceptamos una ventana de -1/+4 dias alrededor de hoy.
+    """
+    now = when or pd.Timestamp.now()
+    try:
+        schedule = fastf1.get_event_schedule(now.year, include_testing=False)
+    except Exception:  # noqa: BLE001 - sin red o temporada no publicada
+        return None
+    for _, row in schedule.iterrows():
+        date = row.get("EventDate")
+        if pd.isna(date) or int(row["RoundNumber"]) <= 0:
+            continue
+        delta = (pd.Timestamp(date).normalize() - now.normalize()).days
+        if -1 <= delta <= 4:
+            return int(now.year), int(row["RoundNumber"]), str(row.get("Location") or "")
+    return None
+
+
+def find_past_edition(location: str, before_year: int) -> tuple[int, int] | None:
+    """La edicion mas reciente del mismo circuito antes de `before_year`.
+
+    Devuelve (year, round) o None si el circuito es nuevo en el calendario.
+    """
+    if not location:
+        return None
+    target = location.strip().casefold()
+    for year in range(before_year - 1, 2017, -1):
+        try:
+            schedule = fastf1.get_event_schedule(year, include_testing=False)
+        except Exception:  # noqa: BLE001 - temporada no disponible
+            continue
+        for _, row in schedule.iterrows():
+            if int(row["RoundNumber"]) <= 0:
+                continue
+            if str(row.get("Location") or "").strip().casefold() == target:
+                return year, int(row["RoundNumber"])
+    return None
+
+
+def get_live_circuit_meta() -> dict | None:
+    """Trazado + rotacion + curvas para el directo, sacados del ano anterior.
+
+    El feed en vivo da posiciones X/Y pero no la geometria del circuito. Como el
+    trazado no cambia de un ano a otro, reutilizamos la edicion pasada del mismo
+    GP. Devuelve None si no se esta corriendo o si el circuito debuta este ano.
+    """
+    current = find_current_event()
+    if current is None:
+        return None
+    year, _rnd, location = current
+    past = find_past_edition(location, year)
+    if past is None:
+        return None
+    past_year, past_rnd = past
+    # La carrera es la que mas datos de posicion tiene; si fallara, probamos quali.
+    for code in ("R", "Q"):
+        try:
+            ses = _load_session(past_year, past_rnd, code, telemetry=True)
+        except Exception:  # noqa: BLE001 - sesion no disponible
+            continue
+        rotation, corners, track = _circuit_meta(ses)
+        if track:
+            return {
+                "track": track, "rotation": rotation, "corners": corners,
+                "source": f"{past_year} {location} ({code})",
+            }
+    return None
+
+
 def get_replay_data(year: int, rnd: int, session: str, dt: float = 0.5) -> dict:
     """Toda la repeticion remuestreada a una rejilla temporal fija (para reproductor).
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from ..live.auth import f1_auth_status
 from ..live.feeds import LiveFeed
 from ..live.manager import manager
 
@@ -23,8 +24,20 @@ async def live_ws(ws: WebSocket) -> None:
 @router.post("/live/start")
 async def live_start() -> dict:
     # Solo funciona durante un GP en directo real.
+    # Validamos el token de F1TV ANTES de arrancar: si caducó, FastF1 no falla,
+    # se cuelga esperando reautenticación en el navegador (ver live/auth.py). Si
+    # no sirve, no tocamos el cliente y devolvemos el aviso para la UI.
+    auth = f1_auth_status()
+    if not auth["ok"]:
+        return {"started": None, "auth": auth}
     await manager.start_feed(LiveFeed(manager))
-    return {"started": "live"}
+    return {"started": "live", "auth": auth}
+
+
+@router.get("/auth")
+async def live_auth() -> dict:
+    """Estado del token de F1TV, para avisar en la UI antes de que caduque."""
+    return f1_auth_status()
 
 
 @router.post("/stop")

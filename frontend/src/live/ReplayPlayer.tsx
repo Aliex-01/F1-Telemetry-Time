@@ -2,7 +2,7 @@
 // localmente -> play/pausa, adelante/atras, velocidad y saltar a cualquier momento
 // son instantaneos (sin ir al servidor). El reloj avanza con requestAnimationFrame
 // e interpola las posiciones X/Y entre frames para un movimiento fluido.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -18,16 +18,13 @@ import { api } from "../api/client";
 import { IconAlert, IconBack10, IconDownload, IconFlag, IconFlagWave, IconFwd10, IconPause, IconPlay, IconRain, IconToStart } from "../components/icons";
 import { ProgressBar } from "../components/ProgressBar";
 import { Select } from "../components/Select";
+import { useImproved, useTowerFlip } from "./towerAnim";
+import { TYRE_COLOR } from "../components/tyres";
 import type { EventInfo, ReplayData, SessionInfo } from "../types/api";
 import { LiveTrackMap } from "./LiveTrackMap";
 import { NO_POS, orderByTeam } from "./gridOrder";
 
 const SPEEDS = [0.5, 1, 2, 4, 8, 16];
-
-const TYRE_COLOR: Record<string, string> = {
-  SOFT: "#ff3333", MEDIUM: "#ffdd00", HARD: "#eeeeee",
-  INTERMEDIATE: "#43b02a", WET: "#0067ad",
-};
 
 function mmss(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -41,46 +38,6 @@ function fmtLap(sec: number): string {
   return m > 0 ? `${m}:${rest.padStart(6, "0")}` : rest;
 }
 
-// FLIP: anima el reordenamiento de las filas de la torre cuando un piloto adelanta
-// a otro (la fila se desliza a su nueva posicion, como en la TV). Solo actua cuando
-// el `order` cambia -no lee layout en cada frame del reproductor-: la dependencia es
-// la cadena de posiciones, estable entre adelantamientos. Tecnica FLIP: se mide la
-// posicion nueva (post-commit), se aplica el desplazamiento inverso sin transicion y
-// se anima a 0. Devuelve la ref que hay que poner en el <tbody>.
-function useTowerFlip(order: string) {
-  const ref = useRef<HTMLTableSectionElement>(null);
-  const prevTops = useRef<Map<string, number>>(new Map());
-  const prevOrder = useRef<string | null>(null);
-
-  useLayoutEffect(() => {
-    const body = ref.current;
-    if (!body) return;
-    const rows = Array.from(body.querySelectorAll<HTMLElement>("[data-flip-key]"));
-    const tops = new Map<string, number>();
-    for (const el of rows) tops.set(el.dataset.flipKey ?? "", el.offsetTop);
-
-    // Solo animamos si ya habia un orden previo distinto (no en el primer render).
-    if (prevOrder.current !== null && prevOrder.current !== order) {
-      for (const el of rows) {
-        const k = el.dataset.flipKey ?? "";
-        const prev = prevTops.current.get(k);
-        if (prev == null) continue;
-        const delta = prev - (tops.get(k) ?? 0);
-        if (Math.abs(delta) < 1) continue;
-        el.style.transition = "none";
-        el.style.transform = `translateY(${delta}px)`;
-        requestAnimationFrame(() => {
-          el.style.transition = "transform 0.45s ease";
-          el.style.transform = "";
-        });
-      }
-    }
-    prevTops.current = tops;
-    prevOrder.current = order;
-  }, [order]);
-
-  return ref;
-}
 
 export function ReplayPlayer({ active = true }: { active?: boolean }) {
   // Cascada de seleccion (igual que en Analisis).
@@ -321,6 +278,12 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
   // Refs FLIP para animar el reordenamiento de las dos torres (carrera y ranking).
   const towerRef = useTowerFlip(tower.map((r) => r.num).join(","));
   const rankingRef = useTowerFlip(ranking.map((r) => r.num).join(","));
+  // Pilotos que acaban de mejorar su vuelta, para destellar la fila.
+  const rankTimes = useMemo(
+    () => new Map(ranking.map((r) => [r.num, r.lapTime])),
+    [ranking],
+  );
+  const improved = useImproved(rankTimes);
 
   // Banderas activas en el instante actual: sectores en amarilla y si hay roja.
   const flagState = useMemo(() => {
@@ -501,7 +464,7 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
                   {ranking.map((r, i) => {
                     const d = byNum.get(r.num);
                     return (
-                      <tr key={r.num} data-flip-key={r.num} className={`${selected === r.num ? "sel" : ""}${dropFrom != null && i + 1 === dropFrom ? " cutline" : ""}`} onClick={() => setSelected(selected === r.num ? null : r.num)}>
+                      <tr key={r.num} data-flip-key={r.num} className={`${selected === r.num ? "sel" : ""}${dropFrom != null && i + 1 === dropFrom ? " cutline" : ""}${improved.has(r.num) ? " improved" : ""}`} onClick={() => setSelected(selected === r.num ? null : r.num)}>
                         <td className={`lb-pos${dropFrom != null && i + 1 >= dropFrom ? " elim" : ""}`}>{i + 1}</td>
                         <td className="lb-code" style={{ borderLeftColor: d?.teamColor ?? "#888" }}>{d?.code ?? r.num}</td>
                         <td className="lb-time">{fmtLap(r.lapTime)}</td>

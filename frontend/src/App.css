@@ -332,6 +332,19 @@
   border-radius: var(--radius-sm);
   padding: 10px 14px;
 }
+/* Estado del token de F1TV: válido (verde discreto) y "caduca pronto" (ámbar). */
+.status.auth-ok {
+  color: #7bd88f;
+  font-size: 13px;
+  padding: 6px 2px;
+}
+.status.auth-ok.auth-soon {
+  color: #ffb454;
+  background: rgba(255, 170, 60, 0.08);
+  border: 1px solid rgba(255, 170, 60, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
 
 /* Barra de progreso indeterminada (carga de datos) */
 .progress {
@@ -577,12 +590,63 @@
 }
 /* En quali, la posicion de los que estan en zona de eliminacion (Q1: P16+, Q2: P11+)
    va en rojo como referencia visual de quien cae. */
-.lb-pos.elim {
+.lb-pos.elim,
+.lt-table .lt-pos.elim {
   color: #ff2d2d;
 }
 /* Linea de corte: separa al ultimo salvado del primer eliminado. Va como overlay
    sobre toda la fila (no border-top) para que cruce tambien la barra de color del
    equipo en vez de partirse en esa esquina. */
+/* Destello verde al bajar la vuelta: el equivalente al flash de la TV cuando un
+   piloto mejora. Dura poco a proposito, para no competir con el FLIP de la fila.
+   Va sobre la primera celda con un pseudo-elemento superpuesto y NO sobre el
+   `background` de la fila: animar el fondo pisaria el de `tr.sel` y `tr:hover`
+   durante la animacion, y la fila seleccionada perderia su marca roja. */
+.tower-table tbody tr.improved td {
+  position: relative;
+}
+.tower-table tbody tr.improved td::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 200, 83, 0.3);
+  /* Por ENCIMA del fondo de la fila pero sin bloquear el clic. Con `z-index:-1`
+     la capa se pintaba detras del fondo del contenedor y no se veia nada; el
+     verde es semitransparente, asi que el texto se sigue leyendo a traves. */
+  pointer-events: none;
+  animation: tower-improved 0.7s ease-out forwards;
+}
+/* Morado = mejor vuelta de la sesion (convencion de la F1). Solo cambia el color:
+   la animacion y los tiempos son los mismos que el destello verde. */
+.tower-table tbody tr.improved.best td::before {
+  background: rgba(177, 75, 219, 0.34);
+}
+@keyframes tower-improved {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* El tiempo tambien se tiñe un instante, para que se vea que el cambio es suyo. */
+.tower-table tbody tr.improved .lb-time,
+.tower-table tbody tr.improved .lt-best {
+  animation: tower-improved-time 0.7s ease-out;
+}
+@keyframes tower-improved-time {
+  0% { color: #00c853; font-weight: 800; }
+  100% { color: inherit; }
+}
+.tower-table tbody tr.improved.best .lb-time,
+.tower-table tbody tr.improved.best .lt-best {
+  animation: tower-best-time 0.7s ease-out;
+}
+@keyframes tower-best-time {
+  0% { color: #b14bdb; font-weight: 800; }
+  100% { color: inherit; }
+}
+/* Cambios de compuesto/posicion suaves, sin parpadeo al reordenar. */
+.tower-table tbody tr .lb-pos,
+.tower-table tbody tr .lb-gap {
+  transition: color 0.25s ease;
+}
 .tower-table tr.cutline {
   position: relative;
 }
@@ -749,6 +813,403 @@
   text-align: right;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+/* ------------------------------------------------ torre de tiempos en vivo */
+.live-timing .lt-session {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.live-timing .lt-session strong {
+  color: var(--text);
+}
+.live-timing .sep-dot {
+  margin: 0 6px;
+  opacity: 0.5;
+}
+.live-timing .lt-status {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+/* Parte de la clasificacion (Q1/Q2/Q3). Destaca sobre el nombre de la sesion
+   porque es el dato que cambia y el que se consulta de un vistazo. */
+.live-timing .lt-part {
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(225, 6, 0, 0.16);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.live-timing .lt-clock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.live-timing .lt-remaining {
+  font-weight: 700;
+  color: var(--text);
+}
+.live-timing .lt-flag {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+.live-timing .lt-flag.allclear { background: rgba(0, 200, 83, 0.16); color: #00c853; }
+.live-timing .lt-flag.yellow { background: rgba(255, 221, 0, 0.16); color: #ffdd00; }
+.live-timing .lt-flag.red { background: rgba(225, 6, 0, 0.18); color: #ff4d4d; }
+.live-timing .lt-flag.safetycar,
+.live-timing .lt-flag.vsc,
+.live-timing .lt-flag.vscending { background: rgba(255, 221, 0, 0.16); color: #ffdd00; }
+
+.lt-table th {
+  padding: 4px 7px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.lt-table tr {
+  cursor: default;
+}
+/* Reparto del ancho: solo la última columna se ciñe a su contenido, para que la
+   tabla cierre en el borde sin hueco muerto. Las demás se reparten el sobrante
+   por igual — si se fuerza `width:1%` en trampa/vuelta/neumático quedan
+   apelotonadas frente al aire que tienen las columnas de sectores. */
+.lt-table .lt-trap,
+.lt-table .lt-laps {
+  white-space: nowrap;
+}
+.lt-table .tower-tyre,
+.lt-table th:nth-last-child(1) {
+  width: 1%;
+  white-space: nowrap;
+}
+.lt-table .lt-pos {
+  width: 26px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.lt-table .lt-chip {
+  display: inline-block;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  margin-right: 7px;
+  vertical-align: -2px;
+}
+.lt-table .lt-code {
+  font-weight: 700;
+}
+.lt-table .lt-gap,
+.lt-table .lt-best {
+  color: var(--text-muted);
+}
+.lt-table .lt-best {
+  font-weight: 700;
+  color: var(--text);
+}
+/* La celda del neumático reparte hueco fijo: círculo + vida + ranura de BOX.
+   Así entrar o salir de boxes no desplaza el neumático.
+   El flex va en el wrapper interior y NO en el <td>: `display:flex` sobre la
+   celda anula su `table-cell`, la saca del reparto de anchos de la tabla y la
+   descuadra de la cabecera "Neum.". */
+.lt-table .tower-tyre {
+  text-align: left;
+}
+.lt-table .tyre-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* El margen suelto de `.tyre` se sumaría al `gap` del flex. */
+.lt-table .tyre-cell .tyre {
+  margin-right: 0;
+}
+.lt-table .lt-box {
+  width: 26px;
+  text-align: right;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #3aa0ff;
+}
+.lt-table .lt-box.off {
+  visibility: hidden;
+}
+/* Abandono/eliminado: ocupa la misma ranura que BOX, en rojo para distinguirlo
+   del azul de boxes (que es una parada, no un final).
+   Sin `font-weight` extra: a 9.5px el 800 cerraba el contraojo de la "O" y se
+   leia como un borron. El peso 700 heredado de `.lt-box` ya destaca de sobra,
+   y el rojo pleno hace el resto (la compensacion por opacidad ya no hace falta,
+   la celda va sin atenuar). */
+.lt-table .lt-box.out {
+  color: #ff2d2d;
+  letter-spacing: 0.04em;
+}
+/* La fila abandonada se atenua celda a celda y NO con `opacity` en el <tr>: la
+   opacidad del padre crea grupo de composicion y no se puede revertir desde el
+   hijo, que dejaba el OUT medio invisible justo donde interesa verlo. */
+/* Anula el `opacity` de `.tower-table tr.dnf` (misma especificidad: gana esta por
+   ir despues en el archivo, asi que no la muevas por encima). */
+.lt-table tr.dnf {
+  opacity: 1;
+}
+.lt-table tr.dnf > td {
+  opacity: 0.45;
+}
+/* Solo la celda del neumatico queda en claro, y dentro de ella se reatenua todo
+   menos el OUT: asi la marca se lee entera sin que la fila deje de verse apagada.
+   Se atenuan los hermanos del OUT, nunca un ancestro suyo: `opacity` en el padre
+   crea grupo de composicion y el hijo ya no puede recuperar el brillo. */
+.lt-table tr.dnf > td.tower-tyre {
+  opacity: 1;
+}
+.lt-table tr.dnf > td.tower-tyre .tyre,
+.lt-table tr.dnf > td.tower-tyre .tyre-life {
+  opacity: 0.45;
+}
+
+/* Mini-sectores: la fila de puntitos de la pantalla oficial de la F1. */
+.lt-table .lt-sector {
+  white-space: nowrap;
+}
+/* Rejilla de dos pistas para que los puntitos arranquen SIEMPRE en la misma x:
+   en flujo normal el ancho del tiempo ("55.837" vs "—") los empujaba y la
+   columna de micros quedaba en diente de sierra. Va en este span y no en el
+   <td>: cambiar el `display` de la celda la saca del layout de la tabla. */
+/* `max-content` en la 2ª pista: con `auto` la pista crecía para llenar la
+   celda, estirando las columnas de sectores y dejando un hueco muerto a la
+   derecha de la tabla. Así ocupa justo lo que miden los puntitos. */
+.lt-table .lt-sector-cell {
+  display: grid;
+  grid-template-columns: 4.4em max-content;
+  align-items: center;
+  justify-content: start;
+  gap: 6px;
+}
+.lt-table .lt-sector-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.lt-segs {
+  display: inline-flex;
+  gap: 1px;
+  vertical-align: middle;
+}
+.lt-seg {
+  display: block;
+  width: 4px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--surface-3);
+}
+.lt-seg.yellow { background: #ffdd00; }
+.lt-seg.green { background: #00c853; }
+.lt-seg.purple { background: #b14bdb; }
+.lt-seg.pit { background: #3aa0ff; }
+.lt-table .lt-trap {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.lt-table .lt-trap small {
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------- panel del piloto (torre) */
+.driver-detail-card {
+  margin-top: 12px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.dd-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.dd-photo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.dd-id {
+  flex: 1;
+  min-width: 0;
+}
+.dd-name {
+  font-weight: 700;
+  font-size: 15px;
+}
+.dd-team {
+  font-size: 12px;
+  font-weight: 600;
+}
+.dd-pos {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dd-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+}
+.dd-close:hover { color: var(--text); }
+.dd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.dd-block h4,
+.dd-section h4 {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.dd-section { margin-top: 12px; }
+.dd-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+.dd-stat-label {
+  width: 52px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.dd-stat-value { flex: 1; }
+.dd-stat-value.strong { font-weight: 700; }
+.dd-stat-pos {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.dd-stat-pos.best {
+  color: #b14bdb;
+  font-weight: 700;
+}
+.dd-stints {
+  display: flex;
+  gap: 2px;
+  height: 22px;
+}
+.dd-stint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 22px;
+  border-radius: 3px;
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+}
+.dd-stint small { opacity: 0.7; font-size: 9px; }
+.dd-rcm {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.dd-rcm li { margin-bottom: 3px; }
+
+/* ------------------------------------------- direccion de carrera y meteo */
+.rc-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.rc-head {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.rc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.rc-item {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rc-item:last-child { border-bottom: none; }
+.rc-time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.rc-msg { color: var(--text-muted); }
+.rc-item.yellow .rc-msg { color: #ffdd00; }
+.rc-item.red .rc-msg { color: #ff4d4d; font-weight: 700; }
+.rc-item.green .rc-msg { color: #00c853; }
+.rc-item.warn .rc-msg { color: #ff9d3a; }
+.rc-item.chequered .rc-msg { color: var(--text); font-weight: 700; }
+
+.lw-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.lw-panel b {
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-right: 3px;
+}
+.lw-icon {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+.lw-rain {
+  color: #3aa0ff;
+  font-weight: 700;
 }
 
 /* ---------------------------------------------------------------- weather */
@@ -1025,6 +1486,57 @@
   height: 22px;
   background: var(--border);
   margin: 0 2px;
+}
+/* Control de retraso: cuadra la torre con el retardo de tu emisión. */
+.delay-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.delay-ctl .delay-lbl {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.delay-ctl button {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.delay-ctl .delay-val {
+  min-width: 34px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 13px;
+}
+.delay-ctl .delay-reset {
+  color: var(--accent);
+  font-size: 11px;
+  padding: 4px 8px;
+}
+/* Valor pendiente de aplicar: se resalta para que no se confunda con el activo. */
+.delay-ctl .delay-val.dirty {
+  color: var(--accent);
+}
+.delay-ctl .delay-apply {
+  font-size: 11px;
+  padding: 4px 10px;
+  font-weight: 700;
+}
+.delay-ctl .delay-apply:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.delay-ctl .delay-sync,
+.delay-ctl .delay-active {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.delay-ctl .delay-sync {
+  color: var(--accent);
+}
+.delay-ctl .delay-active {
+  color: var(--text-muted);
 }
 .dot-conn {
   width: 9px;

@@ -7,6 +7,7 @@ import type {
   EventInfo,
   LapInfo,
   LapRef,
+  MicroSectorRow,
   ReplayData,
   SessionInfo,
   Telemetry,
@@ -95,6 +96,10 @@ export const api = {
     ),
   weather: (year: number, round: number, session: string) =>
     get<WeatherSample[]>(`/${year}/${round}/${session}/weather`),
+  microSectors: (year: number, round: number, session: string, part?: string) =>
+    get<MicroSectorRow[]>(
+      `/${year}/${round}/${session}/micro-sectors${part ? `?part=${encodeURIComponent(part)}` : ""}`,
+    ),
   circuit: (year: number, round: number, session: string) =>
     get<CircuitInfo>(`/${year}/${round}/${session}/circuit`),
   replay: (year: number, round: number, session: string) =>

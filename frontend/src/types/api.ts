@@ -133,6 +133,25 @@ export interface WeatherSample {
   rainfall: boolean | null;
 }
 
+/** Una vuelta troceada por distancia para la comparativa de micro-sectores. Se
+ *  reciben **todas** las vueltas de la tanda: el frontend elige en cada instante
+ *  la que cada piloto está dando, usando `start`/`end`. Los micro-tramos se
+ *  reconstruyen desde la telemetría (FastF1 no expone los mini-sectores
+ *  oficiales del feed en vivo). */
+export interface MicroSectorRow {
+  num: string;
+  lapTime: number;
+  lapNumber: number | null;
+  compound: string | null;
+  /** Tiempo (s) de cada micro-tramo, repartidos por distancia a lo largo de la vuelta. */
+  micros: number[];
+  /** S1/S2/S3 en segundos, para la barra agrupada bajo los micro-tramos. */
+  sectors: (number | null)[];
+  /** Ventana en tiempo de sesión (s): cuándo empezó y acabó esta vuelta. */
+  start: number;
+  end: number;
+}
+
 export interface LapRef {
   year: number;
   round: number;

@@ -17,16 +17,70 @@ function sectorColor(s: { personalFastest: boolean; overallFastest: boolean }): 
   return undefined;
 }
 
-/** Los puntitos por mini-sector de la pantalla oficial de la F1. */
-function Segments({ segments }: { segments?: SegmentColor[] }) {
-  // Sin `?.`: un backend anterior a los mini-sectores no manda el campo y esto
-  // reventaba el render entero de la pestaña.
-  if (!segments?.length) return null;
+/** Fondo del bloque de un sector ya cerrado. A diferencia del reproductor —donde
+ *  un sector normal va amarillo— aqui el feed solo distingue mejor de la sesion
+ *  y mejor personal, asi que el resto se queda en gris claro: sobre el fondo
+ *  oscuro de la torre el texto negro no se leeria. */
+const SECTOR_PLAIN = "#c8ccd4";
+
+function sectorBg(s: { personalFastest: boolean; overallFastest: boolean }): string {
+  return sectorColor(s) ?? SECTOR_PLAIN;
+}
+
+type LiveSector = {
+  value: string | null;
+  personalFastest: boolean;
+  overallFastest: boolean;
+  segments?: SegmentColor[];
+};
+
+/**
+ * Los tres sectores como una banda continua: mini-tramos arriba y la barra por
+ * sector debajo, igual que la rejilla del reproductor (`MicroSectorGrid`).
+ *
+ * A diferencia del reproductor, aqui NO hay tiempo por mini-tramo -el feed solo
+ * manda un color de estado por segmento-, asi que el ancho de cada sector no
+ * puede salir de tiempos: sale del **numero de segmentos** que el propio feed da
+ * para ese sector, que es lo que hace que los cortes de las dos bandas caigan en
+ * el mismo sitio. Y el color de la barra es el del feed (morado = mejor de la
+ * sesion, verde = mejor personal), no una comparacion calculada aqui.
+ */
+function SectorBand({ sectors }: { sectors?: LiveSector[] }) {
+  const secs = [0, 1, 2].map((i) => sectors?.[i]);
+  if (!secs.some((s) => s?.value || s?.segments?.length)) return null;
+  // Reparto del ancho. Con segmentos manda su numero; si un sector aun no tiene
+  // (no se ha entrado en el), se le da un peso medio para que la banda no salte
+  // de tamano al llegar los primeros.
+  const spans = secs.map((s) => s?.segments?.length || 6);
   return (
-    <span className="lt-segs">
-      {segments.map((c, i) => (
-        <i key={i} className={`lt-seg ${c ?? "none"}`} />
-      ))}
+    <span className="lt-band">
+      <span className="lt-band-segs">
+        {secs.map((s, i) => (
+          <span className="lt-band-group" key={i} style={{ flex: `${spans[i]} 0 0` }}>
+            {(s?.segments ?? []).map((c, k) => (
+              <i key={k} className={`lt-seg ${c ?? "none"}`} />
+            ))}
+          </span>
+        ))}
+      </span>
+      <span className="lt-band-secs">
+        {secs.map((s, i) => (
+          <i
+            key={i}
+            className={`lt-band-sec${s?.value ? "" : " pending"}`}
+            style={{
+              flex: `${spans[i]} 0 0`,
+              // Color al FONDO (como la rejilla del reproductor), no al texto:
+              // sobre morado/verde el numero se lee en negro, y asi los tres
+              // sectores se comparan de un vistazo por bloques de color.
+              ...(s?.value ? { background: sectorBg(s) } : {}),
+            }}
+            title={s?.value ? `S${i + 1}: ${s.value}` : undefined}
+          >
+            {s?.value ?? ""}
+          </i>
+        ))}
+      </span>
     </span>
   );
 }
@@ -174,9 +228,7 @@ export function LiveTiming({ data, lapHistory }: { data: LiveTimingData; lapHist
             <th>Int.</th>
             <th>Mejor</th>
             <th>Última</th>
-            <th>S1</th>
-            <th>S2</th>
-            <th>S3</th>
+            <th>Sectores</th>
             <th>Trampa</th>
             <th>Vta</th>
             <th>Neum.</th>
@@ -209,22 +261,13 @@ export function LiveTiming({ data, lapHistory }: { data: LiveTimingData; lapHist
                 <td style={{ color: r.lastOverallBest ? PURPLE : r.lastPersonalBest ? GREEN : undefined }}>
                   {r.last ?? "—"}
                 </td>
-                {[0, 1, 2].map((i) => {
-                  const s = r.sectors?.[i];
-                  return (
-                    <td key={i} className="lt-sector">
-                      {/* El grid va en este wrapper y NO en el <td>: cambiar el
-                          `display` de una celda la saca del layout de la tabla
-                          y descuadra toda la fila. */}
-                      <span className="lt-sector-cell">
-                        <span className="lt-sector-val" style={{ color: s ? sectorColor(s) : undefined }}>
-                          {s?.value ?? "—"}
-                        </span>
-                        {s && <Segments segments={s.segments} />}
-                      </span>
-                    </td>
-                  );
-                })}
+                {/* Los tres sectores en una sola celda, como banda continua. El
+                    flex va en el wrapper y NO en el <td>: cambiar el `display`
+                    de una celda la saca del layout de la tabla y descuadra la
+                    fila entera. */}
+                <td className="lt-sector">
+                  <SectorBand sectors={r.sectors} />
+                </td>
                 <td className="lt-trap">
                   {r.bestSpeeds?.ST ? (
                     <>
@@ -265,6 +308,7 @@ export function LiveTiming({ data, lapHistory }: { data: LiveTimingData; lapHist
           row={selectedRow}
           raceControl={raceControl}
           laps={lapHistory[selectedRow.num] ?? []}
+          isRace={isRace}
           onClose={() => setSelected(null)}
         />
       )}

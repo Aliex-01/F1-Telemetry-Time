@@ -16,11 +16,13 @@ import {
 } from "recharts";
 import { api } from "../api/client";
 import { IconAlert, IconBack10, IconDownload, IconFlag, IconFlagWave, IconFwd10, IconPause, IconPlay, IconRain, IconToStart } from "../components/icons";
+import { DriverHeader } from "../components/DriverHeader";
+import { MicroSectorGrid } from "../components/MicroSectorGrid";
 import { ProgressBar } from "../components/ProgressBar";
 import { Select } from "../components/Select";
 import { useImproved, useTowerFlip } from "./towerAnim";
 import { TYRE_COLOR } from "../components/tyres";
-import type { EventInfo, ReplayData, SessionInfo } from "../types/api";
+import type { EventInfo, MicroSectorRow, ReplayData, SessionInfo, StandingRec } from "../types/api";
 import { LiveTrackMap } from "./LiveTrackMap";
 import { NO_POS, orderByTeam } from "./gridOrder";
 
@@ -51,6 +53,18 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
   const [data, setData] = useState<ReplayData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Comparativa de micro-sectores. Va aparte del `replay` porque necesita
+  // telemetria y tarda mas: asi la repeticion arranca sin esperarla.
+  const [micro, setMicro] = useState<MicroSectorRow[]>([]);
+  // Estado propio: la primera peticion de una sesion tarda ~15 s (trocear la
+  // telemetria de todos los pilotos). Sin distinguir "cargando" de "vacio", un
+  // fallo se veia igual que un bloque que no aparece.
+  const [microState, setMicroState] = useState<"idle" | "loading" | "error">("idle");
+  // Posicion fija de cada piloto en la rejilla: num -> orden de aparicion. Es un
+  // ref y no estado porque se rellena DENTRO del calculo de `microNow` (que corre
+  // con cada `t`) y no debe provocar re-render por si mismo. Se vacia al cambiar
+  // de tanda, para que cada una empiece con su propio orden.
+  const microOrder = useRef(new Map<string, number>());
 
   useEffect(() => { api.seasons().then(setSeasons).catch(() => {}); }, []);
   useEffect(() => {
@@ -72,7 +86,7 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
   async function load() {
     if (year == null || round == null || !session) return;
     setLoading(true); setError(null); setData(null); setPlaying(false);
-    posRef.current = 0; setPos(0); setSelected(null);
+    posRef.current = 0; setPos(0); setSelected(null); setMicro([]);
     try {
       setData(await api.replay(year, round, session));
     } catch (e) {
@@ -251,6 +265,80 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
     for (const s of data.liveRanking) if (s.start <= t) activeSeg = s;
   }
   const rankSig = activeSeg ? `${activeSeg.name}:${activeSeg.events.filter((e) => e.t <= t).length}` : "";
+
+  // La vuelta que cada piloto esta dando en este instante. Si no esta en pista
+  // (entre vueltas, en boxes) se deja la ultima que completo, para que su fila no
+  // desaparezca y se pueda seguir comparando.
+  // Se recalcula con `t`, pero `micro` solo cambia al cargar la tanda: el coste
+  // por frame es un recorrido de la lista, sin peticiones.
+  const microNow = useMemo(() => {
+    if (!micro.length) return [] as MicroSectorRow[];
+    const best = new Map<string, MicroSectorRow>();
+    for (const r of micro) {
+      if (r.start > t) continue; // aun no ha empezado
+      const cur = best.get(r.num);
+      if (!cur) {
+        best.set(r.num, r);
+        continue;
+      }
+      // En curso (`t` dentro de la ventana) manda sobre una ya terminada: es la
+      // que el piloto esta dando ahora mismo. Entre dos del mismo tipo, la mas
+      // reciente. Sin esta regla bastaba con `start >= cur.start`, que da lo
+      // mismo casi siempre pero no garantiza lo que promete.
+      const running = t < r.end;
+      const curRunning = t < cur.end;
+      if (running !== curRunning ? running : r.start >= cur.start) best.set(r.num, r);
+    }
+    // Orden FIJO por orden de aparicion: el primero que entra en la tabla se
+    // queda el primero toda la tanda. Ordenar por tiempo hacia que las filas
+    // saltasen de sitio con cada vuelta y no habia forma de seguir a un piloto
+    // -que es justo para lo que sirve esta rejilla-.
+    const order = microOrder.current;
+    // Los que aun no tienen sitio lo reciben ahora, por el inicio de la vuelta
+    // que les ha hecho aparecer. Se ordenan entre si ANTES de asignar: si se
+    // recorriese el mapa tal cual, el orden dependeria de en que frame llegaron
+    // varios a la vez y al mover el reproductor hacia atras saldria otro
+    // distinto. Con `start` el resultado es el mismo se llegue como se llegue.
+    const fresh = [...best.values()].filter((r) => !order.has(r.num));
+    if (fresh.length) {
+      fresh.sort((a, b) => a.start - b.start);
+      for (const r of fresh) order.set(r.num, order.size);
+    }
+    return [...best.values()].sort(
+      (a, b) => (order.get(a.num) ?? 0) - (order.get(b.num) ?? 0),
+    );
+  }, [micro, t]);
+
+  // La comparativa sigue a la tanda activa del reproductor: al pasar de Q1 a Q2
+  // se recarga con las vueltas de esa tanda. Depende del NOMBRE y no de
+  // `activeSeg`, que se recalcula en cada frame del reloj y dispararia la
+  // peticion sin parar. En carrera (`segName` vacio) se pide la sesion entera.
+  const segName = activeSeg?.name ?? "";
+  useEffect(() => {
+    // Cada tanda estrena su propio orden de filas: si no, Q2 heredaria las
+    // posiciones de Q1 y los que no pasaron dejarian huecos al principio.
+    microOrder.current = new Map();
+    if (year == null || round == null || !session || !data) {
+      setMicro([]); setMicroState("idle");
+      return;
+    }
+    let cancelled = false;
+    setMicroState("loading");
+    api.microSectors(year, round, session, segName || undefined)
+      .then((rows) => {
+        if (cancelled) return;
+        setMicro(rows);
+        setMicroState("idle");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMicro([]);
+        setMicroState("error");
+      });
+    // Una tanda que llega tarde no debe pisar a la que ya se esta viendo.
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, round, session, segName, data]);
   // Zona de eliminacion segun la tanda: en Q1 caen desde P16 (pasan 15), en Q2 desde
   // P11 (pasan 10); en Q3 no hay eliminados. El nombre es Q1/Q2/Q3 (o SQ1/SQ2/SQ3).
   const dropFrom = ((): number | null => {
@@ -284,6 +372,10 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
     [ranking],
   );
   const improved = useImproved(rankTimes);
+  // Convencion de la F1: morado = mejor vuelta de la sesion, verde = mejor
+  // personal. `ranking` viene ordenado por tiempo, asi que el primero es quien
+  // tiene la vuelta mas rapida; si el que mejora es el, el destello va morado.
+  const overallBestNum = ranking.length ? ranking[0].num : null;
 
   // Banderas activas en el instante actual: sectores en amarilla y si hay roja.
   const flagState = useMemo(() => {
@@ -357,6 +449,27 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
   const elapsed = data ? pos * data.dt : 0;
   const total = data ? (data.n - 1) * data.dt : 0;
   const selCar = selected ? frameCars[selected] : null;
+
+  // Estado del piloto seleccionado en este instante: posicion, gaps, neumatico y
+  // paradas. Mismo bloque que el detalle del directo, para que las dos vistas
+  // den la misma informacion. Todo sale de `standings`/`pits`, que ya viajan en
+  // `/replay`: no hace falta pedir nada.
+  const selState = useMemo(() => {
+    if (!data || !selected) return null;
+    // Ultimo registro cuyo instante ya ha pasado: `standings` viene ordenado por
+    // `t` y trae varios por vuelta (meta y cortes de sector), asi que vale
+    // cualquiera, no solo el de meta.
+    let rec: StandingRec | null = null;
+    for (const r of data.standings[selected] ?? []) {
+      if (r.t > t) break;
+      rec = r;
+    }
+    // Paradas: ventanas de pit lane ya cerradas antes de `t`. Se cuenta por
+    // `end` y no por `start` para no sumar la parada mientras esta ocurriendo.
+    const stops = (data.pits[selected] ?? []).filter((p) => p.end <= t).length;
+    const inPit = (data.pits[selected] ?? []).some((p) => p.start <= t && t < p.end);
+    return { rec, stops, inPit };
+  }, [data, selected, t]);
 
   return (
     <div>
@@ -464,7 +577,7 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
                   {ranking.map((r, i) => {
                     const d = byNum.get(r.num);
                     return (
-                      <tr key={r.num} data-flip-key={r.num} className={`${selected === r.num ? "sel" : ""}${dropFrom != null && i + 1 === dropFrom ? " cutline" : ""}${improved.has(r.num) ? " improved" : ""}`} onClick={() => setSelected(selected === r.num ? null : r.num)}>
+                      <tr key={r.num} data-flip-key={r.num} className={`${selected === r.num ? "sel" : ""}${dropFrom != null && i + 1 === dropFrom ? " cutline" : ""}${improved.has(r.num) ? (r.num === overallBestNum ? " improved best" : " improved") : ""}`} onClick={() => setSelected(selected === r.num ? null : r.num)}>
                         <td className={`lb-pos${dropFrom != null && i + 1 >= dropFrom ? " elim" : ""}`}>{i + 1}</td>
                         <td className="lb-code" style={{ borderLeftColor: d?.teamColor ?? "#888" }}>{d?.code ?? r.num}</td>
                         <td className="lb-time">{fmtLap(r.lapTime)}</td>
@@ -532,15 +645,81 @@ export function ReplayPlayer({ active = true }: { active?: boolean }) {
           </div>
           </div>
 
-          {/* Traza de velocidad de la vuelta en curso del piloto seleccionado */}
-          {selected && lapSeries.length > 1 && (() => {
-            const col = byNum.get(selected)?.teamColor ?? "#e10600";
-            return (
+          {/* Comparativa de micro-sectores: quien gana tiempo en cada tramo. Se
+              carga aparte (necesita telemetria) y no bloquea el resto de la vista. */}
+          {(microState !== "idle" || micro.length > 0) && (
             <div className="track-block">
               <div className="track-title">
-                {byNum.get(selected)?.code ?? selected} · velocidad
-                {selLap?.lap ? ` · vuelta ${selLap.lap}` : ""}
+                Comparativa de micro-sectores
+                {activeSeg ? ` · ${activeSeg.name}` : ""}
               </div>
+              {microState === "loading" ? (
+                <ProgressBar label="Troceando la telemetría de cada piloto… (puede tardar unos segundos la primera vez)" />
+              ) : microState === "error" ? (
+                <p className="status error">
+                  No se pudo calcular la comparativa de micro-sectores.
+                </p>
+              ) : (
+                <MicroSectorGrid rows={microNow} reference={micro} drivers={data.drivers} now={t} />
+              )}
+            </div>
+          )}
+
+          {/* Traza de velocidad de la vuelta en curso del piloto seleccionado */}
+          {selected && lapSeries.length > 1 && (() => {
+            const sd = byNum.get(selected);
+            const col = sd?.teamColor ?? "#e10600";
+            return (
+            <div className="track-block">
+              {/* Misma ficha de identidad que el detalle del directo. Aqui no hay
+                  foto (`/replay` no la trae) ni posicion de sesion: la cabecera
+                  se compacta sola y en su lugar va la vuelta en curso. */}
+              <DriverHeader
+                name={sd?.code ?? selected}
+                team={sd?.team ?? null}
+                num={sd?.number ?? null}
+                teamColor={col}
+                pos={selLap?.lap ? `V${selLap.lap}` : null}
+                onClose={() => setSelected(null)}
+              />
+              {/* Estado en la sesion, el mismo bloque que el detalle del directo.
+                  Solo en carrera: en practicas/quali los gaps y las paradas no
+                  significan nada (no hay orden de carrera que seguir). */}
+              {data.type === "race" && selState?.rec && (
+                <div className="replay-state">
+                  <span className="rs-item">
+                    <small>Pos.</small>
+                    <b>P{selState.rec.position}</b>
+                  </span>
+                  <span className="rs-item">
+                    <small>Líder</small>
+                    <b>{selState.rec.gapLeader > 0 ? `+${selState.rec.gapLeader.toFixed(1)}s` : "—"}</b>
+                  </span>
+                  <span className="rs-item">
+                    <small>Intervalo</small>
+                    <b>{selState.rec.gapAhead > 0 ? `+${selState.rec.gapAhead.toFixed(1)}s` : "—"}</b>
+                  </span>
+                  <span className="rs-item">
+                    <small>Paradas</small>
+                    <b>{selState.stops}{selState.inPit && <em> · en boxes</em>}</b>
+                  </span>
+                  {selState.rec.compound && (
+                    <span className="rs-item">
+                      <small>Neumático</small>
+                      <b>
+                        <span
+                          className="tyre dd-tyre"
+                          style={{ background: TYRE_COLOR[selState.rec.compound] ?? "#888" }}
+                          title={selState.rec.compound}
+                        >
+                          {selState.rec.compound[0]}
+                        </span>
+                        {selState.rec.tyreLife != null && `${selState.rec.tyreLife} v`}
+                      </b>
+                    </span>
+                  )}
+                </div>
+              )}
               {selCar && (
                 <div className="driver-readout">
                   <span><b>{Math.round(selCar.speed)}</b><small> km/h</small></span>

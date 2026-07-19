@@ -912,8 +912,11 @@
   margin-right: 7px;
   vertical-align: -2px;
 }
+/* `nowrap`: si la tabla queda justa de ancho, el código del piloto es de lo
+   primero que se parte en dos líneas y descuadra el alto de la fila. */
 .lt-table .lt-code {
   font-weight: 700;
+  white-space: nowrap;
 }
 .lt-table .lt-gap,
 .lt-table .lt-best {
@@ -984,31 +987,82 @@
 }
 
 /* Mini-sectores: la fila de puntitos de la pantalla oficial de la F1. */
+/* Nada de `width:100%` aquí: la banda se llevaba TODO el sobrante y estrujaba
+   las columnas de texto (el nombre del piloto llegaba a partirse en dos líneas).
+   El ancho lo fija el `min-width` de `.lt-band`, y el resto se reparte solo. */
 .lt-table .lt-sector {
   white-space: nowrap;
 }
-/* Rejilla de dos pistas para que los puntitos arranquen SIEMPRE en la misma x:
-   en flujo normal el ancho del tiempo ("55.837" vs "—") los empujaba y la
-   columna de micros quedaba en diente de sierra. Va en este span y no en el
-   <td>: cambiar el `display` de la celda la saca del layout de la tabla. */
-/* `max-content` en la 2ª pista: con `auto` la pista crecía para llenar la
-   celda, estirando las columnas de sectores y dejando un hueco muerto a la
-   derecha de la tabla. Así ocupa justo lo que miden los puntitos. */
-.lt-table .lt-sector-cell {
-  display: grid;
-  grid-template-columns: 4.4em max-content;
-  align-items: center;
-  justify-content: start;
-  gap: 6px;
+/* Los tres sectores como banda continua (mini-tramos arriba, barra por sector
+   debajo), al estilo de `.micro-bands` del reproductor. Las dos filas se parten
+   en los mismos tres grupos con idéntico `flex-grow` —el nº de segmentos de cada
+   sector—, que es lo que hace que los cortes coincidan. El flex va en este span
+   y no en el <td>: cambiar el `display` de una celda la saca del layout de la
+   tabla y descuadra la fila. */
+.lt-band {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* Ancho acotado. Cuidado con subir el mínimo: la banda le quita el espacio a
+     las columnas de texto de su izquierda y a partir de ~30em el nombre del
+     piloto se parte en dos líneas. Este rango deja la banda ancha sin estrujar
+     el resto de la fila. */
+  min-width: 22em;
+  max-width: 34em;
 }
-.lt-table .lt-sector-val {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+/* Las dos filas se parten en los mismos tres grupos y con el MISMO `gap`, que es
+   lo que hace que cada bloque de sector acabe donde acaban sus propios tramos.
+   Un `gap` distinto en cada fila las desalinea (ver `.micro-segs` para el mismo
+   problema en el reproductor). */
+.lt-band-segs,
+.lt-band-secs {
+  display: flex;
+  gap: 7px;
 }
-.lt-segs {
-  display: inline-flex;
+/* Los puntitos de un sector reparten el ancho de SU grupo: así la banda ocupa
+   siempre lo mismo aunque el feed mande distinto nº de segmentos por circuito. */
+.lt-band-group {
+  display: flex;
   gap: 1px;
-  vertical-align: middle;
+  min-width: 0;
+}
+.lt-band-group .lt-seg {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 3px;
+  height: 6px;
+  /* Igual que los tramos del reproductor (`.micro-seg-group i`): con el bloque
+     tan fino, 3px deja las esquinas visiblemente redondeadas sin llegar a
+     convertir el tramo en una cápsula. */
+  border-radius: 3px;
+}
+/* Mismo criterio que `.micro-sectors i`: el color va al fondo y el tiempo dentro,
+   en negro semitransparente —el único que se lee bien sobre morado y verde. */
+.lt-band-sec {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 13px;
+  padding: 0 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-3);
+  color: rgba(0, 0, 0, 0.72);
+  /* 10px y no 11: con el bloque a 13px de alto, un cuerpo mayor lo llena de
+     borde a borde y el número se lee apretado. */
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/* Un sector aún no completado va neutro y sin texto: sin tiempo no hay nada que
+   colorear, y el hueco marca hasta dónde ha llegado la vuelta. */
+.lt-band-sec.pending {
+  background: var(--surface-3);
+  color: transparent;
 }
 .lt-seg {
   display: block;
@@ -1039,37 +1093,50 @@
   border-radius: var(--radius-sm);
   padding: 12px 14px;
 }
-.dd-head {
+/* Cabecera del piloto (`DriverHeader`), compartida por el detalle del directo y
+   la traza del reproductor. Antes vivía solo en `.dd-*` dentro del directo; se
+   sacó aquí para que las dos vistas tengan la misma ficha de identidad. */
+.dh {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
 }
-.dd-photo {
+/* Franja del color del equipo, como el borde de las filas en las torres. Es lo
+   que da identidad cuando no hay foto (el reproductor no la tiene). */
+.dh-chip {
+  width: 4px;
+  align-self: stretch;
+  min-height: 30px;
+  border-radius: 2px;
+  flex: none;
+}
+.dh-photo {
   width: 44px;
   height: 44px;
   border-radius: 50%;
   object-fit: cover;
   background: var(--surface-2);
+  flex: none;
 }
-.dd-id {
+.dh-id {
   flex: 1;
   min-width: 0;
 }
-.dd-name {
+.dh-name {
   font-weight: 700;
   font-size: 15px;
 }
-.dd-team {
+.dh-team {
   font-size: 12px;
   font-weight: 600;
 }
-.dd-pos {
+.dh-pos {
   font-size: 22px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.dd-close {
+.dh-close {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -1077,11 +1144,59 @@
   font-size: 14px;
   padding: 4px 6px;
 }
-.dd-close:hover { color: var(--text); }
+.dh-close:hover { color: var(--text); }
 .dd-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
+}
+/* Estado del piloto en el reproductor: la misma información que el bloque
+   "Carrera" del detalle en directo, pero en una franja horizontal —aquí va bajo
+   la cabecera y sobre la traza, no dentro de una rejilla de bloques. */
+.replay-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 10px;
+}
+.rs-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.25;
+}
+.rs-item small {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.rs-item b {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+/* "en boxes" junto a las paradas: en azul, el mismo código que el BOX de las
+   torres de tiempos. */
+.rs-item em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: #3aa0ff;
+}
+/* El neumático dentro de una fila de stats: algo más pequeño que en la torre y
+   con el nº de vueltas pegado, para que la línea no crezca de alto. */
+.dd-tyre {
+  width: 15px;
+  height: 15px;
+  font-size: 9px;
+  margin-right: 4px;
+}
+.dd-stat-value small {
+  color: var(--text-muted);
+  font-weight: 600;
 }
 .dd-block h4,
 .dd-section h4 {
@@ -1872,6 +1987,126 @@ button:has(> .live-dot) {
 }
 .tyre-seg span {
   text-shadow: 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+
+/* --------------------------------------- rejilla comparativa de micro-sectores */
+.micro-grid {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 18px 20px;
+}
+/* Filas holgadas: la rejilla se lee de un vistazo y apretarlas la volvia un
+   muro de color. El padding vertical es lo que mas se nota. */
+.micro-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6.5px 6px;
+  margin: 0 -6px;
+  border-radius: 5px;
+}
+.micro-row + .micro-row {
+  border-top: 1px solid var(--border-soft);
+}
+.micro-row:hover {
+  background: var(--surface-2);
+}
+.micro-code {
+  width: 52px;
+  padding-left: 9px;
+  border-left: 3px solid #888;
+  font-weight: 800;
+  font-size: 12.5px;
+  letter-spacing: 0.3px;
+}
+.micro-time {
+  width: 104px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.micro-time small {
+  margin-left: 6px;
+  font-size: 9.5px;
+  opacity: 0.65;
+}
+/* Vuelta en curso: el tiempo aun no existe, se marca con el color de acento. */
+.micro-row.running .micro-time {
+  color: var(--accent);
+  font-weight: 700;
+}
+.micro-tyre {
+  width: 17px;
+  height: 17px;
+  font-size: 9px;
+  margin-right: 0;
+}
+/* Las dos bandas comparten ancho para que los sectores queden alineados bajo
+   los micro-tramos que los componen. */
+.micro-bands {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Los huecos van con `border` transparente y NO con `gap`/`margin`: asi cuentan
+   dentro del ancho de cada elemento (box-sizing: border-box) y las dos bandas
+   reparten exactamente el mismo espacio. Con `gap` distinto en cada banda, un
+   sector no acababa donde acababan sus propios tramos. */
+/* Las dos bandas se dividen en los MISMOS tres grupos, uno por sector, y cada
+   grupo reparte su ancho por `flex-grow` = numero de tramos. Asi los cortes caen
+   en el mismo pixel en ambas: con una sola fila de 24 elementos arriba y 3 abajo,
+   los huecos de cada banda sumaban distinto (56px vs 14px) y una acababa antes
+   que la otra, con un desfase que ademas cambiaba de fila en fila. */
+.micro-segs,
+.micro-sectors {
+  display: flex;
+  gap: 7px;
+}
+.micro-seg-group,
+.micro-sectors i {
+  min-width: 0;
+}
+/* Dentro de un grupo, los tramos se reparten a partes iguales. */
+.micro-seg-group {
+  display: flex;
+  gap: 2px;
+}
+.micro-seg-group i {
+  flex: 1 0 0;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+/* Lleva el tiempo del sector dentro. Sobre morado/verde/amarillo el texto va en
+   negro semitransparente: es el unico color que se lee bien en los tres. */
+.micro-sectors i {
+  height: 17px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: rgba(0, 0, 0, 0.72);
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* Sin etiqueta mientras no este cerrado: en gris no se leeria y ademas sugiere
+   que ya hay algo que mirar. */
+.micro-sectors i.pending {
+  color: transparent;
+}
+/* Tramos y sectores aun no recorridos: neutros, sin adelantar el resultado. */
+.micro-segs i.pending,
+.micro-sectors i.pending {
+  background: var(--surface-3);
+  opacity: 0.45;
 }
 
 /* ------------------------------------------------- leyenda de dominancia */

@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { DriverHeader } from "../components/DriverHeader";
 import { TYRE_COLOR } from "../components/tyres";
 import type { RaceControlMessage, TimingLap, TimingRow, TimingStat } from "./useLiveFeed";
 
@@ -41,11 +42,14 @@ function StatCell({ label, stat, unit }: { label: string; stat: TimingStat | nul
 }
 
 export function DriverDetail({
-  row, raceControl, laps, onClose,
+  row, raceControl, laps, isRace = false, onClose,
 }: {
   row: TimingRow;
   raceControl: RaceControlMessage[];
   laps: TimingLap[];
+  /** En carrera el hueco al líder se llama "Líder"; en quali/práctica es la
+   *  diferencia con el más rápido. Lo decide `LiveTiming`, que ya lo calcula. */
+  isRace?: boolean;
   onClose: () => void;
 }) {
   const color = row.teamColor ?? "#888";
@@ -67,19 +71,15 @@ export function DriverDetail({
 
   return (
     <div className="driver-detail-card" style={{ borderTopColor: color }}>
-      <div className="dd-head">
-        {row.headshot && (
-          <img className="dd-photo" src={row.headshot} alt="" loading="lazy" />
-        )}
-        <div className="dd-id">
-          <div className="dd-name">{row.name ?? row.code}</div>
-          <div className="dd-team" style={{ color }}>
-            {row.team ?? "—"} · #{row.num}
-          </div>
-        </div>
-        <div className="dd-pos">{row.pos ? `P${row.pos}` : "—"}</div>
-        <button className="dd-close" onClick={onClose} title="Cerrar">✕</button>
-      </div>
+      <DriverHeader
+        name={row.name ?? row.code}
+        team={row.team}
+        num={row.num}
+        teamColor={row.teamColor}
+        headshot={row.headshot}
+        pos={row.pos ?? "—"}
+        onClose={onClose}
+      />
 
       <div className="dd-grid">
         <div className="dd-block">
@@ -92,6 +92,35 @@ export function DriverDetail({
             <span className="dd-stat-value">{row.idealLap ?? "—"}</span></div>
           <div className="dd-stat"><span className="dd-stat-label">Vueltas</span>
             <span className="dd-stat-value">{row.laps ?? "—"}</span></div>
+        </div>
+
+        {/* Estado en la sesion: lo que mas se mira y hasta ahora solo estaba en
+            la torre. El mismo bloque existe en el reproductor, para que las dos
+            vistas den la misma informacion. */}
+        <div className="dd-block">
+          <h4>{isRace ? "Carrera" : "Sesión"}</h4>
+          <div className="dd-stat"><span className="dd-stat-label">{isRace ? "Líder" : "Dif."}</span>
+            <span className="dd-stat-value">{row.gap ?? "—"}</span></div>
+          <div className="dd-stat"><span className="dd-stat-label">Intervalo</span>
+            <span className="dd-stat-value">{row.interval ?? "—"}</span></div>
+          <div className="dd-stat"><span className="dd-stat-label">Paradas</span>
+            <span className="dd-stat-value">{row.pitStops ?? "—"}</span></div>
+          <div className="dd-stat"><span className="dd-stat-label">Neumático</span>
+            <span className="dd-stat-value">
+              {row.compound ? (
+                <>
+                  <span
+                    className="tyre dd-tyre"
+                    style={{ background: TYRE_COLOR[row.compound] ?? "#888" }}
+                    title={row.compound}
+                  >
+                    {row.compound[0]}
+                  </span>
+                  {row.tyreLaps != null && <small>{row.tyreLaps} v</small>}
+                  {row.tyreNew === false && <small> · usado</small>}
+                </>
+              ) : "—"}
+            </span></div>
         </div>
 
         <div className="dd-block">

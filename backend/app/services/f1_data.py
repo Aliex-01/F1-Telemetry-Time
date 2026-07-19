@@ -6,12 +6,15 @@ la app solo ve estructuras pequenas ya listas para serializar (ver DESIGN.md).
 from __future__ import annotations
 
 import colorsys
+import json
 import threading
+from pathlib import Path
 
 import fastf1
 import numpy as np
 import pandas as pd
 
+from ..config import CACHE_DIR
 from ..models.schemas import (
     CircuitInfo,
     CompareLap,
@@ -58,6 +61,68 @@ _MAX_SESSIONS = 12
 _sessions: dict[tuple[int, int, str], tuple[fastf1.core.Session, bool]] = {}
 # Serializa las cargas para que el prefetch y abrir una vuelta no carguen dos veces.
 _load_lock = threading.Lock()
+
+# Micro-sectores ya calculados, por (año, ronda, sesion, tanda). Trocear la
+# telemetria de todos los pilotos cuesta ~70 s aunque la sesion ya este en
+# memoria, y el frontend vuelve a pedirlos en cada cambio de tanda: sin esta
+# cache el navegador aborta la peticion antes de que llegue la respuesta.
+_MAX_MICRO = 12
+_micro_cache: dict[tuple[int, int, str, str], list[dict]] = {}
+_micro_lock = threading.Lock()
+# Ademas en disco: la cache en memoria se pierde al reiniciar el backend y volver
+# a pagar ~10 s por tanda en cada arranque no tiene sentido, porque el resultado
+# de una sesion pasada no cambia nunca.
+_MICRO_DIR = CACHE_DIR / "micro-sectors"
+# Version del formato en disco. Un JSON guardado no dice con que criterio se
+# troceo: si cambia el numero de tramos o como se cortan, los archivos viejos
+# seguirian sirviendose con el formato anterior y no habria forma de notarlo.
+# Subir este numero deja atras los antiguos (y `_micro_sweep` los borra).
+_MICRO_VERSION = 1
+
+
+def _micro_path(key: tuple[int, int, str, str]) -> Path:
+    year, rnd, session, part = key
+    return _MICRO_DIR / f"v{_MICRO_VERSION}_{year}_{rnd}_{session}_{part or 'all'}.json"
+
+
+def _micro_sweep() -> None:
+    """Borra los micro-sectores en disco de versiones anteriores.
+
+    La cache en memoria tiene tope (FIFO), pero la de disco crecia sin limite:
+    cada tanda de cada sesion que se abra deja un archivo para siempre. Al menos
+    los de formatos que ya no se leen no tienen por que quedarse.
+    """
+    try:
+        for old in _MICRO_DIR.glob("*.json"):
+            if not old.name.startswith(f"v{_MICRO_VERSION}_"):
+                old.unlink(missing_ok=True)
+    except OSError:  # la cache es prescindible: si no se puede limpiar, seguimos
+        pass
+
+
+def _micro_from_disk(key: tuple[int, int, str, str]) -> list[dict] | None:
+    try:
+        with _micro_path(key).open(encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):  # no existe o esta corrupto: se recalcula
+        return None
+
+
+#: El barrido de versiones viejas solo tiene sentido una vez por arranque.
+_micro_swept = False
+
+
+def _micro_to_disk(key: tuple[int, int, str, str], rows: list[dict]) -> None:
+    global _micro_swept
+    try:
+        _MICRO_DIR.mkdir(parents=True, exist_ok=True)
+        if not _micro_swept:  # se llama con `_micro_lock` tomado
+            _micro_swept = True
+            _micro_sweep()
+        with _micro_path(key).open("w", encoding="utf-8") as fh:
+            json.dump(rows, fh, separators=(",", ":"))
+    except OSError:  # sin disco o sin permisos: seguimos con la cache en memoria
+        pass
 
 
 def _load_session(
@@ -113,9 +178,29 @@ def get_circuit_info(year: int, rnd: int, session: str) -> CircuitInfo:
 
 
 def warm_session(year: int, rnd: int, session: str) -> dict:
-    """Precalienta la telemetria de una sesion (para prefetch en segundo plano)."""
+    """Precalienta la telemetria de una sesion (para prefetch en segundo plano).
+
+    Aprovecha para dejar listos los micro-sectores de cada tanda: es el trabajo
+    lento de la comparativa (~10 s) y hacerlo aqui lo saca del camino critico, de
+    forma que cuando el usuario llegue a mirarla ya este calculada.
+    """
     ses = _load_session(year, rnd, session, telemetry=True)
-    return {"warmed": True, "drivers": len(ses.drivers)}
+    parts: list[str | None] = [None]
+    if _session_type(session) == "quali":
+        prefix = "SQ" if session == "SQ" else "Q"
+        try:
+            found = ses.laps.split_qualifying_sessions()
+        except Exception:  # noqa: BLE001
+            found = []
+        parts = [f"{prefix}{i}" for i, p in enumerate(found, start=1) if p is not None and len(p)]
+    warmed = 0
+    for part in parts:
+        try:
+            get_micro_sectors(year, rnd, session, part)
+            warmed += 1
+        except Exception:  # noqa: BLE001 - el prefetch nunca debe romper la peticion
+            pass
+    return {"warmed": True, "drivers": len(ses.drivers), "microParts": warmed}
 
 
 def _circuit_meta(ses: fastf1.core.Session) -> tuple[float, list[dict], list[list[float]]]:
@@ -317,6 +402,172 @@ def _timed_ranking(ses: fastf1.core.Session, session: str) -> list[dict]:
             "name": name, "start": events[0]["t"], "end": events[-1]["t"], "events": events,
         })
     return segments
+
+
+#: Numero de micro-tramos por vuelta en la rejilla comparativa. La F1 usa ~20 por
+#: sector; aqui se reparten sobre la vuelta entera para no depender de donde caen
+#: los cortes de sector, que FastF1 no da por distancia.
+MICRO_SEGMENTS = 24
+
+
+def _micro_sectors(ses: fastf1.core.Session, lap: pd.Series, n: int) -> list[float] | None:
+    """Tiempo (s) de cada micro-tramo de una vuelta, repartidos por distancia.
+
+    FastF1 no expone los mini-sectores oficiales del feed en vivo, asi que se
+    reconstruyen: se toma la telemetria de la vuelta, se reparte la distancia en
+    `n` tramos iguales y se mide cuanto tardo el coche en cada uno.
+
+    Devuelve None si la vuelta no tiene telemetria utilizable (habitual en vueltas
+    de entrada a boxes o si la sesion se cargo sin telemetria).
+
+    OJO con el coste: es una llamada a `get_telemetry()` por vuelta. Sirve para
+    una vuelta suelta, pero NO para recorrer una tanda entera (cientos de
+    vueltas) -eso cuelga la peticion-; para eso esta `_micros_from_sectors`.
+    """
+    try:
+        tel = lap.get_telemetry().add_distance()
+    except Exception:  # noqa: BLE001 - vuelta sin telemetria: se omite
+        return None
+    if tel.empty or "Distance" not in tel:
+        return None
+    dist = tel["Distance"].to_numpy(dtype=float)
+    time_s = tel["Time"].dt.total_seconds().to_numpy(dtype=float)
+    total = float(dist.max())
+    if not np.isfinite(total) or total <= 0:
+        return None
+    # Tiempo acumulado en cada frontera de tramo -> diferencia = tiempo del tramo.
+    edges = np.linspace(0.0, total, n + 1)
+    at_edge = np.interp(edges, dist, time_s)
+    return [round(float(d), 3) for d in np.diff(at_edge)]
+
+
+def _micros_from_stint(
+    tel: pd.DataFrame, start_s: float, end_s: float, n: int
+) -> list[float] | None:
+    """Micro-tramos reales de una vuelta, recortados de la telemetria del stint.
+
+    `tel` es la telemetria continua de un piloto (una sola llamada para todas sus
+    vueltas), con `SessionTime` y `Distance` acumulada. Aqui se recorta la ventana
+    de una vuelta y se reparte SU distancia en `n` tramos iguales, midiendo cuanto
+    tardo en cada uno.
+
+    Es el mismo criterio que usan los mini-sectores del directo -tramos por
+    distancia, no por tiempo-, y a diferencia de `_micro_sectors` no cuesta una
+    llamada de telemetria por vuelta.
+    """
+    st = tel["_sess"].to_numpy(dtype=float)
+    lo, hi = np.searchsorted(st, start_s), np.searchsorted(st, end_s)
+    if hi - lo < n + 1:  # muestras insuficientes para trocear
+        return None
+    dist = tel["Distance"].to_numpy(dtype=float)[lo:hi]
+    time_s = st[lo:hi]
+    d0, d1 = float(dist[0]), float(dist[-1])
+    if not np.isfinite(d0) or not np.isfinite(d1) or d1 <= d0:
+        return None
+    edges = np.linspace(d0, d1, n + 1)
+    at_edge = np.interp(edges, dist, time_s)
+    out = np.diff(at_edge)
+    if not np.all(np.isfinite(out)) or np.any(out < 0):
+        return None
+    return [round(float(v), 3) for v in out]
+
+
+def _micros_from_sectors(lap: pd.Series, n: int) -> list[float] | None:
+    """Micro-tramos de una vuelta repartidos a partir de sus tiempos de sector.
+
+    Alternativa barata a `_micro_sectors`: no toca la telemetria, asi que sirve
+    para procesar todas las vueltas de una tanda en una sola peticion. Cada
+    sector se divide en tramos proporcionales a su duracion, de forma que un
+    sector lento reparte tramos mas lentos.
+
+    Es menos fiel que la telemetria (dentro de un sector todos los tramos duran
+    igual), pero conserva lo que importa para comparar: donde cada piloto gana o
+    pierde respecto a los demas.
+    """
+    secs = []
+    for col in ("Sector1Time", "Sector2Time", "Sector3Time"):
+        v = lap.get(col)
+        secs.append(v.total_seconds() if pd.notna(v) else None)
+    if any(s is None or s <= 0 for s in secs):
+        return None
+    total = sum(secs)  # type: ignore[arg-type]
+    if total <= 0:
+        return None
+    out: list[float] = []
+    for i, s in enumerate(secs):
+        # Tramos de este sector, proporcionales a su peso en la vuelta. Al menos
+        # uno, y el ultimo sector absorbe el redondeo para que sumen `n`.
+        k = max(1, round(n * (s / total))) if i < 2 else max(1, n - len(out))
+        out.extend([round(s / k, 3)] * k)
+    return out[:n]
+
+
+def _micro_grid(ses: fastf1.core.Session, laps: pd.DataFrame) -> list[dict]:
+    """Todas las vueltas cronometradas, troceadas en micro-tramos.
+
+    Se mandan TODAS y no solo la mejor porque el frontend sigue el reloj del
+    reproductor: en cada instante elige la vuelta que ese piloto esta dando. Por
+    eso cada fila lleva su ventana temporal (`start`/`end`, tiempo de sesion).
+
+    Cada fila lleva ademas los tres sectores, para pintar la barra agrupada bajo
+    los tramos finos. El color lo decide el frontend comparando con el mejor de
+    cada columna.
+    """
+    rows: list[dict] = []
+    # Una sola llamada de telemetria POR PILOTO (no por vuelta): pedirla vuelta a
+    # vuelta son cientos de llamadas y la peticion tardaba minutos. Con el stint
+    # entero se trocean todas sus vueltas de una pasada.
+    for num, grp in laps.groupby("DriverNumber"):
+        tel = None
+        try:
+            t = grp.get_telemetry().add_distance()
+            if not t.empty and "Distance" in t:
+                t = t.copy()
+                t["_sess"] = t["SessionTime"].dt.total_seconds()
+                tel = t.sort_values("_sess")
+        except Exception:  # noqa: BLE001 - sin telemetria se cae al reparto barato
+            tel = None
+
+        for _, lap in grp.iterrows():
+            lt, end = lap["LapTime"], lap["Time"]
+            if pd.isna(lt) or pd.isna(end):
+                continue
+            # Fuera las vueltas de boxes: la de entrada acaba en el pit lane y la
+            # de salida arrastra el tiempo parado, asi que no son comparables (y
+            # son mas de la mitad de la tanda: filtrarlas casi divide el trabajo).
+            if pd.notna(lap.get("PitInTime")) or pd.notna(lap.get("PitOutTime")):
+                continue
+            end_s = end.total_seconds()
+            start_s = end_s - lt.total_seconds()
+            # Tramos reales por distancia (como el directo). Si esta vuelta no
+            # tiene telemetria utilizable, se reparte desde los sectores.
+            micros = (
+                _micros_from_stint(tel, start_s, end_s, MICRO_SEGMENTS)
+                if tel is not None
+                else None
+            )
+            if micros is None:
+                micros = _micros_from_sectors(lap, MICRO_SEGMENTS)
+            if micros is None:
+                continue
+
+            def _sec(col: str, _lap=lap) -> float | None:
+                v = _lap.get(col)
+                return round(v.total_seconds(), 3) if pd.notna(v) else None
+
+            rows.append({
+                "num": str(num),
+                "lapTime": round(lt.total_seconds(), 3),
+                "lapNumber": int(lap["LapNumber"]) if pd.notna(lap["LapNumber"]) else None,
+                "compound": str(lap["Compound"]) if pd.notna(lap["Compound"]) else None,
+                "micros": micros,
+                "sectors": [_sec("Sector1Time"), _sec("Sector2Time"), _sec("Sector3Time")],
+                # Ventana en tiempo de sesion: `Time` es el instante de cruzar meta.
+                "start": round(start_s, 2),
+                "end": round(end_s, 2),
+            })
+    rows.sort(key=lambda r: r["start"])
+    return rows
 
 
 def _race_standings(ses: fastf1.core.Session) -> dict[str, list[dict]]:
@@ -899,6 +1150,58 @@ def compare_laps(refs: list[LapRef]) -> CompareResponse:
 
 
 # ---------------------------------------------------------------- meteorologia
+
+def get_micro_sectors(year: int, rnd: int, session: str, part: str | None = None) -> list[dict]:
+    """Micro-sectores de todas las vueltas cronometradas de la tanda.
+
+    Se devuelven todas (no solo la mejor) con su ventana temporal, para que el
+    frontend pueda mostrar la vuelta que cada piloto esta dando en el instante
+    del reproductor sin volver a pedir nada.
+
+    `part` acota a una tanda de clasificacion ("Q1", "Q2"...); sin ella se usa la
+    sesion entera.
+
+    Los tramos se cortan de la telemetria (como los mini-sectores del directo),
+    con UNA llamada por piloto y no por vuelta. Si un piloto no tiene telemetria
+    utilizable se cae al reparto por tiempos de sector.
+    """
+    key = (year, rnd, session, part or "")
+    cached = _micro_cache.get(key)
+    if cached is not None:
+        return cached
+
+    with _micro_lock:
+        # Re-comprobar dentro del lock: otro hilo pudo calcularlo mientras
+        # esperabamos, y son ~10 s de trabajo que no conviene repetir.
+        cached = _micro_cache.get(key)
+        if cached is not None:
+            return cached
+
+        # En disco sobrevive al reinicio del backend: una sesion pasada no cambia.
+        from_disk = _micro_from_disk(key)
+        if from_disk is not None:
+            _micro_cache[key] = from_disk
+            return from_disk
+
+        ses = _load_session(year, rnd, session, telemetry=True)
+        laps = ses.laps
+        if part and _session_type(session) == "quali":
+            try:
+                parts = ses.laps.split_qualifying_sessions()
+            except Exception:  # noqa: BLE001
+                parts = []
+            prefix = "SQ" if session == "SQ" else "Q"
+            for i, p in enumerate(parts, start=1):
+                if p is not None and len(p) and f"{prefix}{i}" == part:
+                    laps = p
+                    break
+        rows = _micro_grid(ses, laps)
+        if len(_micro_cache) >= _MAX_MICRO:  # FIFO, como la cache de sesiones
+            _micro_cache.pop(next(iter(_micro_cache)))
+        _micro_cache[key] = rows
+        _micro_to_disk(key, rows)
+        return rows
+
 
 def get_weather(year: int, rnd: int, session: str) -> list[WeatherSample]:
     ses = _load_session(year, rnd, session)

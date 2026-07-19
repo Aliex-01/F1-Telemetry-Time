@@ -67,4 +67,4 @@ npx tsc --noEmit   # typecheck
 
 - No hagas `git push` nunca. Puedes preparar cambios y hacer `git add` + `git commit` con un buen mensaje **cuando yo lo pida**; el push lo hago yo tras verificar.
 - **Sin coautoría**: los commits van solo con mi autoría. No añadas el trailer `Co-Authored-By: Claude ...` al mensaje; termina en la última línea de contenido.
-- Si creas, mueves o renombras un archivo, actualiza **RESUMEN.md** antes de terminar la tarea.
+- **Actualiza RESUMEN.md en CADA cambio**, sin que te lo pida y antes de terminar la tarea. No solo al crear, mover o renombrar archivos: también cuando cambies el **comportamiento** de algo ya documentado (un endpoint, una función, cómo se ve o se calcula algo). Una ficha que describe un diseño anterior engaña más que no tenerla — si rediseñas una vista o cambias de enfoque a mitad, vuelve atrás y corrige lo que ya habías escrito.

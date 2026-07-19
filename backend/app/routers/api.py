@@ -62,6 +62,12 @@ def telemetry(year: int, rnd: int, session: str, driver: str, lap_number: int) -
     return _guard(f1_data.get_telemetry, year, rnd, session, driver, lap_number)
 
 
+@router.get("/{year}/{rnd}/{session}/micro-sectors")
+def micro_sectors(year: int, rnd: int, session: str, part: str | None = None) -> list[dict]:
+    """Rejilla comparativa: mejor vuelta de cada piloto troceada en micro-tramos."""
+    return _guard(f1_data.get_micro_sectors, year, rnd, session, part)
+
+
 @router.get("/{year}/{rnd}/{session}/weather", response_model=list[WeatherSample])
 def weather(year: int, rnd: int, session: str) -> list[WeatherSample]:
     return _guard(f1_data.get_weather, year, rnd, session)
